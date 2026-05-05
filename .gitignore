@@ -1,0 +1,5 @@
+.venv
+
+Clinch_SAAS/__pycache__
+
+db.sqlite3
