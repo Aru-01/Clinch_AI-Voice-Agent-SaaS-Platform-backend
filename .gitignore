@@ -1,5 +1,10 @@
 .venv
 
-Clinch_SAAS/__pycache__
 
 db.sqlite3
+
+Clinch_SAAS/__pycache__
+apps/accounts/__pycache__
+
+strt.text
+project_details.txt
