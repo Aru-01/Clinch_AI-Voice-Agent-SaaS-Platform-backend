@@ -7,14 +7,14 @@ from django.utils.html import strip_tags
 from django.conf import settings
 from django.utils import timezone
 from email.mime.image import MIMEImage
-from .models import OTPCode
+from ..models import OTPCode
 
 def generate_otp(user, otp_type):
     # Delete existing unused OTPs of the same type for this user
     OTPCode.objects.filter(user=user, type=otp_type, is_used=False).delete()
 
-    # Generate 4-digit OTP
-    code = "".join(random.choices(string.digits, k=4))
+    # Generate 6-digit OTP
+    code = "".join(random.choices(string.digits, k=6))
     OTPCode.objects.create(user=user, code=code, type=otp_type)
     return code
 

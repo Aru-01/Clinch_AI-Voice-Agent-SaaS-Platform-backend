@@ -39,7 +39,7 @@ INSTALLED_APPS = [
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "apps.accounts.authenticate.CookieJWTAuthentication",
+        "apps.accounts.services.authenticate.CookieJWTAuthentication",
     ),
 }
 
@@ -74,7 +74,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "apps.accounts.middleware.JWTCookieMiddleware",
+    "apps.accounts.services.middleware.JWTCookieMiddleware",
 ]
 
 ROOT_URLCONF = "Clinch_SAAS.urls"

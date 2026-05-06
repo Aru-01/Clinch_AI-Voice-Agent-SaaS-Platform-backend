@@ -13,12 +13,14 @@ from apps.accounts.serializers import (
     ForgotPasswordSerializer, ResetPasswordSerializer, ChangePasswordSerializer
 )
 from apps.accounts.models import OTPCode, Business
-from apps.accounts.utils import (
+
+# Services Imports
+from apps.accounts.services.utils import (
     generate_otp, send_otp_email, 
     check_otp_rate_limit, update_otp_rate_limit, reset_otp_rate_limit
 )
-from apps.accounts.permissions import IsVerifiedUser
-from apps.accounts.schemas import (
+from apps.accounts.services.permissions import IsVerifiedUser
+from apps.accounts.services.schemas import (
     register_schema, login_schema, verify_email_schema, resend_otp_schema,
     forgot_password_schema, reset_password_schema, logout_schema,
     user_profile_schema, business_profile_schema, change_password_schema

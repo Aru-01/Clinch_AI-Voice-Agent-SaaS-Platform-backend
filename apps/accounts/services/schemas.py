@@ -25,7 +25,7 @@ register_schema = {
                 "application/json": {
                     "user": {
                         "id": "550e8400-e29b-41d4-a716-446655440000",
-                        "name": "Ariful Islam",
+                        "name": "Arif Hussain",
                         "email": "arif@example.com",
                         "phone": "+8801700000000",
                         "business": "b1234567-e29b-41d4-a716-446655440000",
@@ -61,7 +61,7 @@ login_schema = {
                 "application/json": {
                     "user": {
                         "id": "uuid",
-                        "name": "Ariful Islam",
+                        "name": "Arif Hussain",
                         "email": "arif@example.com",
                         "is_verified": True,
                     },
@@ -77,7 +77,7 @@ login_schema = {
 # Verify Email Schema
 verify_email_schema = {
     "operation_summary": "Verify Email",
-    "operation_description": "Verifies the user's account using the 4-digit OTP sent to their email.",
+    "operation_description": "Verifies the user's account using the 6-digit OTP sent to their email.",
     "tags": [AUTH_TAG],
     "request_body": openapi.Schema(
         type=openapi.TYPE_OBJECT,
@@ -86,7 +86,7 @@ verify_email_schema = {
             "email": openapi.Schema(
                 type=openapi.TYPE_STRING, format="email", example="arif@example.com"
             ),
-            "otp": openapi.Schema(type=openapi.TYPE_STRING, example="1234"),
+            "otp": openapi.Schema(type=openapi.TYPE_STRING, example="123456"),
         },
     ),
     "responses": {
@@ -124,6 +124,15 @@ resend_otp_schema = {
         ),
         400: error_response,
         404: error_response,
+        429: openapi.Response(
+            description="Too Many Requests",
+            examples={
+                "application/json": {
+                    "error": "Please wait 30 seconds before requesting another OTP.",
+                    "wait_time": 30,
+                }
+            },
+        ),
     },
 }
 
@@ -165,7 +174,7 @@ reset_password_schema = {
             "email": openapi.Schema(
                 type=openapi.TYPE_STRING, format="email", example="arif@example.com"
             ),
-            "otp": openapi.Schema(type=openapi.TYPE_STRING, example="1234"),
+            "otp": openapi.Schema(type=openapi.TYPE_STRING, example="123456"),
             "new_password": openapi.Schema(
                 type=openapi.TYPE_STRING, min_length=8, example="new_secret_pass"
             ),
@@ -204,7 +213,7 @@ user_profile_schema = {
             examples={
                 "application/json": {
                     "id": "uuid",
-                    "name": "Ariful Islam",
+                    "name": "Arif Hussain",
                     "email": "arif@example.com",
                     "phone": "+8801700000000",
                     "profile_image": None,
@@ -213,6 +222,37 @@ user_profile_schema = {
                 }
             },
         )
+    },
+}
+
+# Change Password Schema
+change_password_schema = {
+    "operation_summary": "Change Password",
+    "operation_description": "Allows an authenticated user to change their password by providing the old password and a new one.",
+    "tags": [USER_TAG],
+    "request_body": openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=["old_password", "new_password", "confirm_password"],
+        properties={
+            "old_password": openapi.Schema(
+                type=openapi.TYPE_STRING, example="old_secret_123"
+            ),
+            "new_password": openapi.Schema(
+                type=openapi.TYPE_STRING, min_length=8, example="new_secret_456"
+            ),
+            "confirm_password": openapi.Schema(
+                type=openapi.TYPE_STRING, example="new_secret_456"
+            ),
+        },
+    ),
+    "responses": {
+        200: openapi.Response(
+            description="Password changed successfully",
+            examples={
+                "application/json": {"message": "Password updated successfully!"}
+            },
+        ),
+        400: error_response,
     },
 }
 

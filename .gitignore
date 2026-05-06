@@ -9,3 +9,4 @@ apps/accounts/__pycache__
 strt.text
 project_details.txt
 apps/api/__pycache__
+apps/accounts/services/__pycache__
