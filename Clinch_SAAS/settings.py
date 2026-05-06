@@ -3,17 +3,11 @@ from pathlib import Path
 from datetime import timedelta
 from decouple import config
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config("SECRET_KEY")
 
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=False, cast=bool)
 
 ALLOWED_HOSTS = config(
@@ -22,8 +16,6 @@ ALLOWED_HOSTS = config(
     cast=lambda v: [s.strip() for s in v.split(",") if s.strip()],
 )
 
-
-# Application definition
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -37,6 +29,13 @@ INSTALLED_APPS = [
     "drf_yasg",
 ]
 
+
+# Custom Apps
+CUSTOM_APPS = [
+    "apps.accounts",
+]
+
+INSTALLED_APPS += CUSTOM_APPS
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "apps.accounts.services.authenticate.CookieJWTAuthentication",
@@ -58,13 +57,6 @@ SIMPLE_JWT = {
     "AUTH_COOKIE_SAMESITE": "Lax",
 }
 
-
-# Custom Apps
-CUSTOM_APPS = [
-    "apps.accounts",
-]
-
-INSTALLED_APPS += CUSTOM_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
