@@ -19,7 +19,6 @@ from apps.accounts.serializers import (
 )
 from apps.accounts.models import OTPCode, Business
 
-# Services Imports
 from apps.accounts.services.utils import (
     generate_otp,
     send_otp_email,
@@ -342,6 +341,10 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
     def patch(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)
 
+    @swagger_auto_schema(**user_profile_schema)
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
     def get_object(self):
         return self.request.user
 
@@ -357,6 +360,10 @@ class BusinessProfileView(generics.RetrieveUpdateAPIView):
     @swagger_auto_schema(**business_profile_schema)
     def patch(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)
+
+    @swagger_auto_schema(**business_profile_schema)
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
 
     def get_object(self):
         return self.request.user.business

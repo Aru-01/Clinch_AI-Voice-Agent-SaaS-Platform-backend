@@ -229,7 +229,7 @@ user_profile_schema = {
 change_password_schema = {
     "operation_summary": "Change Password",
     "operation_description": "Allows an authenticated user to change their password by providing the old password and a new one.",
-    "tags": [USER_TAG],
+    "tags": [AUTH_TAG],
     "request_body": openapi.Schema(
         type=openapi.TYPE_OBJECT,
         required=["old_password", "new_password", "confirm_password"],
