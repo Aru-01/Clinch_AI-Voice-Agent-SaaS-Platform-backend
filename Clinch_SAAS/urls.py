@@ -3,6 +3,7 @@ from django.urls import path, include
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from debug_toolbar.toolbar import debug_toolbar_urls
 
 # Main API schema view
 schema_view = get_schema_view(
@@ -24,9 +25,9 @@ urlpatterns = [
     path("", include("apps.api.urls")),
     # Swagger UI with UI configuration to show full paths
     path(
-        "swagger/",
+        "docs/",
         schema_view.with_ui("swagger", cache_timeout=0),
         name="schema-swagger-ui",
     ),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
-]
+] + debug_toolbar_urls()

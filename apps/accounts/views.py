@@ -315,7 +315,9 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         return self.update(request, *args, **kwargs)
 
     def get_object(self):
-        return self.request.user
+        return User.objects.select_related("business").prefetch_related(
+            "user_roles__role"
+        ).get(pk=self.request.user.pk)
 
 
 class BusinessProfileView(generics.RetrieveUpdateAPIView):
