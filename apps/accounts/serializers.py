@@ -17,6 +17,8 @@ class BusinessSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    roles = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
@@ -27,8 +29,12 @@ class UserSerializer(serializers.ModelSerializer):
             "profile_image",
             "business",
             "is_verified",
+            "roles",
         ]
-        read_only_fields = ["id", "email", "business", "is_verified"]
+        read_only_fields = ["id", "email", "business", "is_verified", "roles"]
+
+    def get_roles(self, obj):
+        return [user_role.role.name for user_role in obj.user_roles.all()]
 
 
 class RegisterSerializer(serializers.Serializer):

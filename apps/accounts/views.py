@@ -7,38 +7,10 @@ from django.contrib.auth import authenticate, get_user_model
 from django.conf import settings
 from django.utils import timezone
 from drf_yasg.utils import swagger_auto_schema
-
-from apps.accounts.serializers import (
-    RegisterSerializer,
-    UserSerializer,
-    BusinessSerializer,
-    VerifyEmailSerializer,
-    ForgotPasswordSerializer,
-    ResetPasswordSerializer,
-    ChangePasswordSerializer,
-)
+from apps.accounts import serializers
 from apps.accounts.models import OTPCode, Business
-
-from apps.accounts.services.utils import (
-    generate_otp,
-    send_otp_email,
-    check_otp_rate_limit,
-    update_otp_rate_limit,
-    reset_otp_rate_limit,
-)
+from apps.accounts.services import utils, schemas
 from apps.accounts.services.permissions import IsVerifiedUser
-from apps.accounts.services.schemas import (
-    register_schema,
-    login_schema,
-    verify_email_schema,
-    resend_otp_schema,
-    forgot_password_schema,
-    reset_password_schema,
-    logout_schema,
-    user_profile_schema,
-    business_profile_schema,
-    change_password_schema,
-)
 
 User = get_user_model()
 
@@ -71,9 +43,9 @@ def set_auth_cookies(response, user):
 
 class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
-    serializer_class = RegisterSerializer
+    serializer_class = serializers.RegisterSerializer
 
-    @swagger_auto_schema(**register_schema)
+    @swagger_auto_schema(**schemas.register_schema)
     def post(self, request, *args, **kwargs):
         return self.create(request, *args, **kwargs)
 
@@ -82,10 +54,8 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # Clean expired OTPs
         OTPCode.clean_expired()
 
-        # Send Verification OTP
         otp = generate_otp(user, OTPCode.OTPType.EMAIL_VERIFY)
         send_otp_email(user, otp, OTPCode.OTPType.EMAIL_VERIFY)
         update_otp_rate_limit(user)
@@ -102,9 +72,9 @@ class RegisterView(generics.CreateAPIView):
 
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
-    serializer_class = VerifyEmailSerializer
+    serializer_class = serializers.VerifyEmailSerializer
 
-    @swagger_auto_schema(**verify_email_schema)
+    @swagger_auto_schema(**schemas.verify_email_schema)
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -112,7 +82,6 @@ class VerifyEmailView(APIView):
         email = serializer.validated_data["email"]
         otp = serializer.validated_data["otp"]
 
-        # Clean expired OTPs
         OTPCode.clean_expired()
 
         user = User.objects.filter(email=email).first()
@@ -138,11 +107,9 @@ class VerifyEmailView(APIView):
         user.is_verified = True
         user.save()
 
-        # Delete the used OTP instead of marking it
         otp_obj.delete()
 
-        # Reset rate limit on success
-        reset_otp_rate_limit(user)
+        utils.reset_otp_rate_limit(user)
 
         return Response({"message": "Email verified successfully!"})
 
@@ -150,12 +117,11 @@ class VerifyEmailView(APIView):
 class ResendOTPView(APIView):
     permission_classes = [AllowAny]
 
-    @swagger_auto_schema(**resend_otp_schema)
+    @swagger_auto_schema(**schemas.resend_otp_schema)
     def post(self, request):
         email = request.data.get("email")
         otp_type = request.data.get("type", OTPCode.OTPType.EMAIL_VERIFY)
 
-        # Clean expired OTPs
         OTPCode.clean_expired()
 
         user = User.objects.filter(email=email).first()
@@ -165,8 +131,13 @@ class ResendOTPView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Rate Limit Check
-        allowed, wait_time = check_otp_rate_limit(user)
+        if user.is_verified and otp_type == OTPCode.OTPType.EMAIL_VERIFY:
+            otp_type = OTPCode.OTPType.PASSWORD_RESET
+            message = "User already verified. Password reset OTP sent instead."
+        else:
+            message = "OTP sent successfully!"
+
+        allowed, wait_time = utils.check_otp_rate_limit(user)
         if not allowed:
             return Response(
                 {
@@ -177,17 +148,17 @@ class ResendOTPView(APIView):
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
-        otp = generate_otp(user, otp_type)
-        send_otp_email(user, otp, otp_type)
-        update_otp_rate_limit(user)
+        otp = utils.generate_otp(user, otp_type)
+        utils.send_otp_email(user, otp, otp_type)
+        utils.update_otp_rate_limit(user)
 
-        return Response({"message": "OTP sent successfully!"})
+        return Response({"message": message})
 
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
-    @swagger_auto_schema(**login_schema)
+    @swagger_auto_schema(**schemas.login_schema)
     def post(self, request):
         email = request.data.get("email")
         password = request.data.get("password")
@@ -201,7 +172,10 @@ class LoginView(APIView):
                 )
 
             response = Response(
-                {"user": UserSerializer(user).data, "message": "Login successful"}
+                {
+                    "user": serializers.UserSerializer(user).data,
+                    "message": "Login successful",
+                }
             )
             return set_auth_cookies(response, user)
 
@@ -213,22 +187,20 @@ class LoginView(APIView):
 
 class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
-    serializer_class = ForgotPasswordSerializer
+    serializer_class = serializers.ForgotPasswordSerializer
 
-    @swagger_auto_schema(**forgot_password_schema)
+    @swagger_auto_schema(**schemas.forgot_password_schema)
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Clean expired OTPs
         OTPCode.clean_expired()
 
         email = serializer.validated_data["email"]
         user = User.objects.filter(email=email).first()
 
         if user:
-            # Check rate limit
-            allowed, wait_time = check_otp_rate_limit(user)
+            allowed, wait_time = utils.check_otp_rate_limit(user)
             if not allowed:
                 return Response(
                     {
@@ -238,9 +210,9 @@ class ForgotPasswordView(APIView):
                     status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )
 
-            otp = generate_otp(user, OTPCode.OTPType.PASSWORD_RESET)
-            send_otp_email(user, otp, OTPCode.OTPType.PASSWORD_RESET)
-            update_otp_rate_limit(user)
+            otp = utils.generate_otp(user, OTPCode.OTPType.PASSWORD_RESET)
+            utils.send_otp_email(user, otp, OTPCode.OTPType.PASSWORD_RESET)
+            utils.update_otp_rate_limit(user)
 
         return Response(
             {
@@ -251,14 +223,13 @@ class ForgotPasswordView(APIView):
 
 class ResetPasswordView(APIView):
     permission_classes = [AllowAny]
-    serializer_class = ResetPasswordSerializer
+    serializer_class = serializers.ResetPasswordSerializer
 
-    @swagger_auto_schema(**reset_password_schema)
+    @swagger_auto_schema(**schemas.reset_password_schema)
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Clean expired OTPs
         OTPCode.clean_expired()
 
         email = serializer.validated_data["email"]
@@ -288,11 +259,9 @@ class ResetPasswordView(APIView):
         user.set_password(new_password)
         user.save()
 
-        # Delete used OTP
         otp_obj.delete()
 
-        # Reset rate limit on success
-        reset_otp_rate_limit(user)
+        utils.reset_otp_rate_limit(user)
 
         return Response({"message": "Password reset successful!"})
 
@@ -300,7 +269,7 @@ class ResetPasswordView(APIView):
 class LogoutView(APIView):
     permission_classes = [AllowAny]
 
-    @swagger_auto_schema(**logout_schema)
+    @swagger_auto_schema(**schemas.logout_schema)
     def post(self, request):
         response = Response({"message": "Logout successful"})
         response.delete_cookie(settings.SIMPLE_JWT["AUTH_COOKIE"])
@@ -310,9 +279,9 @@ class LogoutView(APIView):
 
 class ChangePasswordView(APIView):
     permission_classes = [IsVerifiedUser]
-    serializer_class = ChangePasswordSerializer
+    serializer_class = serializers.ChangePasswordSerializer
 
-    @swagger_auto_schema(**change_password_schema)
+    @swagger_auto_schema(**schemas.change_password_schema)
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -331,17 +300,17 @@ class ChangePasswordView(APIView):
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsVerifiedUser]
-    serializer_class = UserSerializer
+    serializer_class = serializers.UserSerializer
 
-    @swagger_auto_schema(**user_profile_schema)
+    @swagger_auto_schema(**schemas.user_profile_schema)
     def get(self, request, *args, **kwargs):
         return self.retrieve(request, *args, **kwargs)
 
-    @swagger_auto_schema(**user_profile_schema)
+    @swagger_auto_schema(**schemas.user_profile_schema)
     def patch(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)
 
-    @swagger_auto_schema(**user_profile_schema)
+    @swagger_auto_schema(**schemas.user_profile_schema)
     def put(self, request, *args, **kwargs):
         return self.update(request, *args, **kwargs)
 
@@ -351,17 +320,17 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
 class BusinessProfileView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsVerifiedUser]
-    serializer_class = BusinessSerializer
+    serializer_class = serializers.BusinessSerializer
 
-    @swagger_auto_schema(**business_profile_schema)
+    @swagger_auto_schema(**schemas.business_profile_schema)
     def get(self, request, *args, **kwargs):
         return self.retrieve(request, *args, **kwargs)
 
-    @swagger_auto_schema(**business_profile_schema)
+    @swagger_auto_schema(**schemas.business_profile_schema)
     def patch(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)
 
-    @swagger_auto_schema(**business_profile_schema)
+    @swagger_auto_schema(**schemas.business_profile_schema)
     def put(self, request, *args, **kwargs):
         return self.update(request, *args, **kwargs)
 

@@ -29,7 +29,6 @@ INSTALLED_APPS = [
     "drf_yasg",
 ]
 
-
 # Custom Apps
 CUSTOM_APPS = [
     "apps.accounts",
@@ -49,9 +48,9 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
-    "AUTH_COOKIE": "access",  # Cookie name for access token
-    "AUTH_COOKIE_REFRESH": "refresh",  # Cookie name for refresh token
-    "AUTH_COOKIE_SECURE": False,  # Set to True in production
+    "AUTH_COOKIE": "access",
+    "AUTH_COOKIE_REFRESH": "refresh",
+    "AUTH_COOKIE_SECURE": True,
     "AUTH_COOKIE_HTTP_ONLY": True,
     "AUTH_COOKIE_PATH": "/",
     "AUTH_COOKIE_SAMESITE": "Lax",

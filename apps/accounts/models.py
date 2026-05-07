@@ -52,7 +52,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_verified = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
 
-    # OTP Rate Limiting Fields
     otp_resend_count = models.IntegerField(default=0)
     last_otp_sent_at = models.DateTimeField(null=True, blank=True)
 
