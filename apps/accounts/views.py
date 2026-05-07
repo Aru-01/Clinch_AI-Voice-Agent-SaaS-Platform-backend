@@ -56,13 +56,13 @@ class RegisterView(generics.CreateAPIView):
 
         OTPCode.clean_expired()
 
-        otp = generate_otp(user, OTPCode.OTPType.EMAIL_VERIFY)
-        send_otp_email(user, otp, OTPCode.OTPType.EMAIL_VERIFY)
-        update_otp_rate_limit(user)
+        otp = utils.generate_otp(user, OTPCode.OTPType.EMAIL_VERIFY)
+        utils.send_otp_email(user, otp, OTPCode.OTPType.EMAIL_VERIFY)
+        utils.update_otp_rate_limit(user)
 
         response = Response(
             {
-                "user": UserSerializer(user).data,
+                "user": serializers.UserSerializer(user).data,
                 "message": "Registration successful. Please verify your email.",
             },
             status=status.HTTP_201_CREATED,
