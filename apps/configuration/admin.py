@@ -22,27 +22,31 @@ class MaskedAdminForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
             for field_name in self.Meta.masked_fields:
-                if field_name in self.initial and self.initial[field_name]:
-                    self.fields[field_name].widget = forms.PasswordInput(
-                        render_value=True
-                    )
-                    self.initial[field_name] = ""
-                    self.fields[field_name].widget = forms.PasswordInput(
-                        render_value=False
-                    )
+                raw_encrypted_val = getattr(self.instance, f"_{field_name}", None)
+                if raw_encrypted_val:
+                    self.initial[field_name] = raw_encrypted_val
+                    self.fields[field_name].widget = forms.TextInput()
                     self.fields[field_name].required = False
                     self.fields[field_name].help_text = (
-                        "Leave blank to keep the current key/token. Enter a new value to update it."
+                        "This is the encrypted value. To change it, replace this entire text with your new plain-text key."
                     )
 
     def save(self, commit=True):
         instance = super().save(commit=False)
         for field_name in self.Meta.masked_fields:
             value = self.cleaned_data.get(field_name)
-            if not value and getattr(instance, f"_{field_name}", None):
+            original_encrypted_val = getattr(instance, f"_{field_name}", None)
+            
+            if not value:
+                # If they empty the field, we clear it in the DB
+                setattr(instance, field_name, None)
+            elif value == original_encrypted_val:
+                # If the value matches the encrypted string, they didn't edit it. Do nothing.
                 continue
-            elif value:
+            else:
+                # User provided a new plain-text string, update it
                 setattr(instance, field_name, value)
+                
         if commit:
             instance.save()
         return instance
