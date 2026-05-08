@@ -1,48 +1,42 @@
 import uuid
+import os
 from django.db import models
 from apps.accounts.models import Business
 from core.encryption import encrypt_value, decrypt_value
 
+
 # ---------------------------------------------------------------------------
-# EncryptedField – transparent encrypt-on-save / decrypt-on-read
+# APIConfig
 # ---------------------------------------------------------------------------
-
-
-class EncryptedTextField(models.TextField):
-    """
-    A TextField that transparently encrypts the value before saving to DB
-    and decrypts it when accessed via Python.
-    """
-
-    def from_db_value(self, value, expression, connection):
-        if value is None or value == "":
-            return value
-        return decrypt_value(value)
-
-    def to_python(self, value):
-        if value is None or value == "":
-            return value
-        return value
-
-    def get_prep_value(self, value):
-        if value is None or value == "":
-            return value
-        return encrypt_value(value)
 
 
 class APIConfig(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     business = models.OneToOneField(
-        Business,
-        on_delete=models.CASCADE,
-        related_name="api_config",
+        Business, on_delete=models.CASCADE, related_name="api_config"
     )
 
-    openai_key = EncryptedTextField(blank=True, null=True)
-    deepgram_key = EncryptedTextField(blank=True, null=True)
+    _openai_key = models.TextField(db_column="openai_key", blank=True, null=True)
+    _deepgram_key = models.TextField(db_column="deepgram_key", blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def openai_key(self):
+        return decrypt_value(self._openai_key) if self._openai_key else None
+
+    @openai_key.setter
+    def openai_key(self, value):
+        self._openai_key = encrypt_value(value) if value else None
+
+    @property
+    def deepgram_key(self):
+        return decrypt_value(self._deepgram_key) if self._deepgram_key else None
+
+    @deepgram_key.setter
+    def deepgram_key(self, value):
+        self._deepgram_key = encrypt_value(value) if value else None
 
     class Meta:
         verbose_name = "API Config"
@@ -62,28 +56,44 @@ class CRMConfig(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     business = models.OneToOneField(
-        Business,
-        on_delete=models.CASCADE,
-        related_name="crm_config",
+        Business, on_delete=models.CASCADE, related_name="crm_config"
+    )
+    provider = models.CharField(
+        max_length=50, choices=Provider.choices, default=Provider.GOHIGHLEVEL
     )
 
-    provider = models.CharField(
-        max_length=50,
-        choices=Provider.choices,
-        default=Provider.GOHIGHLEVEL,
+    _token = models.TextField(db_column="token", blank=True, null=True)
+    _location_id = models.TextField(db_column="location_id", blank=True, null=True)
+    _webhook_secret = models.TextField(
+        db_column="webhook_secret", blank=True, null=True
     )
-    token = EncryptedTextField(
-        blank=True, null=True, help_text="API token / OAuth token"
-    )
-    location_id = EncryptedTextField(
-        blank=True, null=True, help_text="CRM Location / Account ID"
-    )
-    # webhook_secret = EncryptedTextField(
-    #     blank=True, null=True, help_text="Webhook signing secret"
-    # )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def token(self):
+        return decrypt_value(self._token) if self._token else None
+
+    @token.setter
+    def token(self, value):
+        self._token = encrypt_value(value) if value else None
+
+    @property
+    def location_id(self):
+        return decrypt_value(self._location_id) if self._location_id else None
+
+    @location_id.setter
+    def location_id(self, value):
+        self._location_id = encrypt_value(value) if value else None
+
+    @property
+    def webhook_secret(self):
+        return decrypt_value(self._webhook_secret) if self._webhook_secret else None
+
+    @webhook_secret.setter
+    def webhook_secret(self, value):
+        self._webhook_secret = encrypt_value(value) if value else None
 
     class Meta:
         verbose_name = "CRM Config"
@@ -96,26 +106,31 @@ class CRMConfig(models.Model):
 class TwilioConfig(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     business = models.OneToOneField(
-        Business,
-        on_delete=models.CASCADE,
-        related_name="twilio_config",
+        Business, on_delete=models.CASCADE, related_name="twilio_config"
     )
 
-    twilio_sid = EncryptedTextField(
-        blank=True, null=True, help_text="Twilio Account SID"
-    )
-    twilio_token = EncryptedTextField(
-        blank=True, null=True, help_text="Twilio Auth Token"
-    )
-    twilio_number = models.CharField(
-        max_length=30,
-        blank=True,
-        null=True,
-        help_text="Outbound caller ID, e.g. +1234567890",
-    )
+    _twilio_sid = models.TextField(db_column="twilio_sid", blank=True, null=True)
+    _twilio_token = models.TextField(db_column="twilio_token", blank=True, null=True)
+    twilio_number = models.CharField(max_length=30, blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def twilio_sid(self):
+        return decrypt_value(self._twilio_sid) if self._twilio_sid else None
+
+    @twilio_sid.setter
+    def twilio_sid(self, value):
+        self._twilio_sid = encrypt_value(value) if value else None
+
+    @property
+    def twilio_token(self):
+        return decrypt_value(self._twilio_token) if self._twilio_token else None
+
+    @twilio_token.setter
+    def twilio_token(self, value):
+        self._twilio_token = encrypt_value(value) if value else None
 
     class Meta:
         verbose_name = "Twilio Config"
@@ -138,26 +153,19 @@ class VoiceConfig(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     business = models.OneToOneField(
-        Business,
-        on_delete=models.CASCADE,
-        related_name="voice_config",
+        Business, on_delete=models.CASCADE, related_name="voice_config"
     )
-
     gender = models.CharField(
-        max_length=20,
-        choices=Gender.choices,
-        default=Gender.FEMALE,
+        max_length=20, choices=Gender.choices, default=Gender.FEMALE
     )
     tone = models.CharField(
-        max_length=20,
-        choices=Tone.choices,
-        default=Tone.PROFESSIONAL,
+        max_length=20, choices=Tone.choices, default=Tone.PROFESSIONAL
     )
     voice_template = models.FileField(
         upload_to="voice_templates/",
         blank=True,
         null=True,
-        help_text="Optional audio sample file (mp3/wav)",
+        help_text="Audio sample file (mp3/wav/ogg/m4a/aac/flac/webm, max 120 MB)",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -180,31 +188,15 @@ class KnowledgeFile(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     business = models.ForeignKey(
-        Business,
-        on_delete=models.CASCADE,
-        related_name="knowledge_files",
+        Business, on_delete=models.CASCADE, related_name="knowledge_files"
     )
-
-    name = models.CharField(max_length=255, help_text="Friendly display name")
-    file = models.FileField(
-        upload_to="knowledge_files/",
-        help_text="Accepted: pdf, json, csv, txt, docx",
-    )
-    file_type = models.CharField(
-        max_length=20,
-        blank=True,
-        help_text="Auto-detected from file extension",
-    )
+    name = models.CharField(max_length=255)
+    file = models.FileField(upload_to="knowledge_files/")
+    file_type = models.CharField(max_length=20, blank=True)
     status = models.CharField(
-        max_length=20,
-        choices=Status.choices,
-        default=Status.UPLOADED,
+        max_length=20, choices=Status.choices, default=Status.UPLOADED
     )
-    error_message = models.TextField(
-        blank=True,
-        null=True,
-        help_text="Populated when status=failed",
-    )
+    error_message = models.TextField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -216,8 +208,6 @@ class KnowledgeFile(models.Model):
 
     def save(self, *args, **kwargs):
         if self.file and not self.file_type:
-            import os
-
             _, ext = os.path.splitext(self.file.name)
             self.file_type = ext.lstrip(".").lower()
         super().save(*args, **kwargs)
