@@ -21,9 +21,7 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    # All APIs prefixed with /api/
     path("", include("apps.api.urls")),
-    # Swagger UI with UI configuration to show full paths
     path(
         "docs/",
         schema_view.with_ui("swagger", cache_timeout=0),

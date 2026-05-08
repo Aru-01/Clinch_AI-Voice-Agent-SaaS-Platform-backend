@@ -34,6 +34,7 @@ INSTALLED_APPS = [
 CUSTOM_APPS = [
     "apps.accounts",
     "apps.system_admin",
+    "apps.configuration",
 ]
 
 INSTALLED_APPS += CUSTOM_APPS
@@ -173,3 +174,7 @@ EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@clinchsaas.com")
+
+# Encryption key for sensitive config fields (Fernet)
+# Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+ENCRYPTION_KEY = config("ENCRYPTION_KEY")
