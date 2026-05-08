@@ -36,17 +36,14 @@ class MaskedAdminForm(forms.ModelForm):
         for field_name in self.Meta.masked_fields:
             value = self.cleaned_data.get(field_name)
             original_encrypted_val = getattr(instance, f"_{field_name}", None)
-            
+
             if not value:
-                # If they empty the field, we clear it in the DB
                 setattr(instance, field_name, None)
             elif value == original_encrypted_val:
-                # If the value matches the encrypted string, they didn't edit it. Do nothing.
                 continue
             else:
-                # User provided a new plain-text string, update it
                 setattr(instance, field_name, value)
-                
+
         if commit:
             instance.save()
         return instance
