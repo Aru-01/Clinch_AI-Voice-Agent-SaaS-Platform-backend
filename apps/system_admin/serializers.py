@@ -59,6 +59,7 @@ class BusinessAdminListSerializer(serializers.ModelSerializer):
             "name",
             "phone",
             "email",
+            "profile_image",
             "join_date",
             "plan",
             "plan_start_date",
