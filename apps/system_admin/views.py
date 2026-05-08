@@ -2,9 +2,6 @@ from rest_framework import generics, status, serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
-from django.utils import timezone
-from django.db.models import Count, Q
-from datetime import timedelta
 from drf_yasg.utils import swagger_auto_schema
 from apps.system_admin.permissions import IsSystemAdmin
 from apps.system_admin.serializers import (
@@ -74,7 +71,6 @@ class SystemAdminCreateView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # Send Verification OTP (similar to registration)
         OTPCode.clean_expired()
         otp = utils.generate_otp(user, OTPCode.OTPType.EMAIL_VERIFY)
         utils.send_otp_email(user, otp, OTPCode.OTPType.EMAIL_VERIFY)

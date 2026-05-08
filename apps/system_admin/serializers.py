@@ -5,6 +5,7 @@ from apps.accounts.serializers import UserSerializer
 
 User = get_user_model()
 
+
 class SystemAdminCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255)
     email = serializers.EmailField()
@@ -18,11 +19,12 @@ class SystemAdminCreateSerializer(serializers.Serializer):
 
     def validate_phone(self, value):
         if User.objects.filter(phone=value).exists():
-            raise serializers.ValidationError("A user with this phone number already exists.")
+            raise serializers.ValidationError(
+                "A user with this phone number already exists."
+            )
         return value
 
     def create(self, validated_data):
-        # Create regular user with is_staff=True, but NOT is_superuser
         user = User.objects.create_user(
             email=validated_data["email"],
             password=validated_data["password"],
@@ -30,10 +32,9 @@ class SystemAdminCreateSerializer(serializers.Serializer):
             phone=validated_data["phone"],
         )
         user.is_staff = True
-        user.is_verified = False # Must verify via OTP
+        user.is_verified = False
         user.save()
 
-        # Assign system_admin role
         role, _ = Role.objects.get_or_create(name="system_admin")
         UserRole.objects.create(user=user, role=role)
 
@@ -42,8 +43,7 @@ class SystemAdminCreateSerializer(serializers.Serializer):
 
 class BusinessAdminListSerializer(serializers.ModelSerializer):
     join_date = serializers.DateTimeField(source="created_at", format="%Y-%m-%d")
-    
-    # Placeholders for future fields
+
     plan = serializers.CharField(default="Free", read_only=True)
     plan_start_date = serializers.CharField(default=None, read_only=True)
     plan_end_date = serializers.CharField(default=None, read_only=True)
