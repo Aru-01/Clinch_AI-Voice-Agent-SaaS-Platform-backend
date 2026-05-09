@@ -2,13 +2,12 @@ from rest_framework import viewsets, permissions, status, filters, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
-
-from .models import SupportTicket, TicketMessage
-from .serializers import (
+from apps.support.models import SupportTicket, TicketMessage
+from apps.support.serializers import (
     SupportTicketSerializer,
     TicketMessageSerializer,
 )
+from apps.support import schemas
 
 
 class SupportTicketViewSet(viewsets.ModelViewSet):
@@ -28,6 +27,18 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at", "updated_at"]
     ordering = ["-created_at"]
 
+    @swagger_auto_schema(**schemas.ticket_list_schema)
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @swagger_auto_schema(**schemas.ticket_create_schema)
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+    @swagger_auto_schema(**schemas.ticket_retrieve_schema)
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
@@ -42,7 +53,6 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
                 business_id=user.business_id
             ).select_related("business", "creator")
 
-        # Fix N+1 queries for nested messages
         queryset = queryset.prefetch_related("messages__sender")
 
         status_param = self.request.query_params.get("status")
@@ -54,20 +64,20 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         if user.business_id is None:
-            raise serializers.ValidationError({"detail": "System admins cannot create tickets."})
-        
-        message_text = serializer.validated_data.pop("message", None)
-        ticket = serializer.save(creator=user, business_id=user.business_id)
-        
-        if message_text:
-            TicketMessage.objects.create(
-                ticket=ticket,
-                sender=user,
-                message=message_text
+            raise serializers.ValidationError(
+                {"detail": "System admins cannot create tickets."}
             )
 
+        message_text = serializer.validated_data.pop("message", None)
+        ticket = serializer.save(creator=user, business_id=user.business_id)
+
+        if message_text:
+            TicketMessage.objects.create(
+                ticket=ticket, sender=user, message=message_text
+            )
+
+    @swagger_auto_schema(**schemas.ticket_update_schema)
     def update(self, request, *args, **kwargs):
-        # Business admins cannot update tickets. System admins can update status/notes.
         user = request.user
         if user.business_id is not None:
             return Response(
@@ -78,12 +88,10 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop("partial", False)
         instance = self.get_object()
 
-        # Extract allowed fields
         data = {}
         if "status" in request.data:
             data["status"] = request.data["status"]
-            
-        # Handle "notes" or "note" from payload
+
         notes_input = request.data.get("notes") or request.data.get("note")
         if notes_input is not None:
             if isinstance(notes_input, list):
@@ -109,17 +117,7 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
-    @swagger_auto_schema(
-        method="post",
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            required=["message"],
-            properties={
-                "message": openapi.Schema(type=openapi.TYPE_STRING),
-            },
-        ),
-        responses={201: TicketMessageSerializer()},
-    )
+    @swagger_auto_schema(**schemas.add_message_schema)
     @action(detail=True, methods=["post"], url_path="messages")
     def add_message(self, request, pk=None):
         """Add a message to a ticket (visible to both System and Business admins)."""
