@@ -4,11 +4,10 @@ from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from .models import SupportTicket, TicketMessage, TicketNote
+from .models import SupportTicket, TicketMessage
 from .serializers import (
     SupportTicketSerializer,
     TicketMessageSerializer,
-    TicketNoteSerializer,
 )
 
 
@@ -16,7 +15,7 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Support Tickets.
     - Business admins can create tickets and view their own tickets.
-    - System admins can view all tickets, patch status, and add notes.
+    - System admins can view all tickets, patch status, and update notes.
     """
 
     permission_classes = [permissions.IsAuthenticated]
@@ -43,8 +42,8 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
                 business_id=user.business_id
             ).select_related("business", "creator")
 
-        # Fix N+1 queries for nested messages, notes, and their senders
-        queryset = queryset.prefetch_related("messages__sender", "notes__sender")
+        # Fix N+1 queries for nested messages
+        queryset = queryset.prefetch_related("messages__sender")
 
         status_param = self.request.query_params.get("status")
         if status_param:
@@ -68,7 +67,7 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
             )
 
     def update(self, request, *args, **kwargs):
-        # Business admins cannot update tickets. System admins can update status.
+        # Business admins cannot update tickets. System admins can update status/notes.
         user = request.user
         if user.business_id is not None:
             return Response(
@@ -79,31 +78,30 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop("partial", False)
         instance = self.get_object()
 
-        # Allow updating 'status' and optionally providing 'note'
-        allowed_fields = {"status", "note"}
-        update_fields = set(request.data.keys())
-        if not update_fields.issubset(allowed_fields):
+        # Extract allowed fields
+        data = {}
+        if "status" in request.data:
+            data["status"] = request.data["status"]
+            
+        # Handle "notes" or "note" from payload
+        notes_input = request.data.get("notes") or request.data.get("note")
+        if notes_input is not None:
+            if isinstance(notes_input, list):
+                data["notes"] = "\n".join(str(n) for n in notes_input if n)
+            else:
+                data["notes"] = str(notes_input)
+
+        if not data:
             return Response(
-                {"detail": "You can only update the status field and optionally add a note."},
+                {"detail": "You must provide either status or notes to update."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
         return Response(serializer.data)
-
-    def perform_update(self, serializer):
-        note_text = serializer.validated_data.pop("note", None)
-        ticket = serializer.save()
-        
-        if note_text:
-            TicketNote.objects.create(
-                ticket=ticket,
-                sender=self.request.user,
-                note=note_text
-            )
 
     def destroy(self, request, *args, **kwargs):
         return Response(
@@ -139,35 +137,3 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         return Response(
             TicketMessageSerializer(message).data, status=status.HTTP_201_CREATED
         )
-
-    @swagger_auto_schema(
-        method="post",
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            required=["note"],
-            properties={
-                "note": openapi.Schema(type=openapi.TYPE_STRING),
-            },
-        ),
-        responses={201: TicketNoteSerializer()},
-    )
-    @action(detail=True, methods=["post"], url_path="notes")
-    def add_note(self, request, pk=None):
-        """Add an internal note to a ticket (System Admins only)."""
-        user = request.user
-        if user.business_id is not None:
-            return Response(
-                {"detail": "Only system admins can add internal notes."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        ticket = self.get_object()
-        note_text = request.data.get("note")
-        if not note_text:
-            return Response(
-                {"detail": "Note text is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        note = TicketNote.objects.create(ticket=ticket, sender=user, note=note_text)
-        return Response(TicketNoteSerializer(note).data, status=status.HTTP_201_CREATED)
