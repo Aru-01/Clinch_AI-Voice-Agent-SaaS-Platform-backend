@@ -35,6 +35,7 @@ CUSTOM_APPS = [
     "apps.accounts",
     "apps.system_admin",
     "apps.configuration",
+    "apps.support",
 ]
 
 INSTALLED_APPS += CUSTOM_APPS
