@@ -78,6 +78,14 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
 
     @swagger_auto_schema(**schemas.ticket_update_schema)
     def update(self, request, *args, **kwargs):
+        return self._do_update(request, *args, **kwargs)
+
+    @swagger_auto_schema(**schemas.ticket_update_schema)
+    def partial_update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return self._do_update(request, *args, **kwargs)
+
+    def _do_update(self, request, *args, **kwargs):
         user = request.user
         if user.business_id is not None:
             return Response(
@@ -111,6 +119,7 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.data)
 
+    @swagger_auto_schema(**schemas.ticket_delete_schema)
     def destroy(self, request, *args, **kwargs):
         return Response(
             {"detail": "Tickets cannot be deleted."},

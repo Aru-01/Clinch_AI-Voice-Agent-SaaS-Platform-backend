@@ -82,3 +82,10 @@ add_message_schema = {
     ),
     "responses": {201: TicketMessageSerializer(), 400: error_response},
 }
+
+ticket_delete_schema = {
+    "operation_summary": "Delete Support Ticket",
+    "operation_description": "Support tickets cannot be deleted. This endpoint will return a 405 Method Not Allowed.",
+    "tags": [SUPPORT_TAG],
+    "responses": {405: error_response},
+}
