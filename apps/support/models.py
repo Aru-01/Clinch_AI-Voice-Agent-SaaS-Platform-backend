@@ -21,8 +21,18 @@ class SupportTicket(models.Model):
     status = models.CharField(
         max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING
     )
+    ticket_number = models.PositiveIntegerField(unique=True, editable=False, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.ticket_number:
+            last_ticket = SupportTicket.objects.order_by("ticket_number").last()
+            if last_ticket and last_ticket.ticket_number:
+                self.ticket_number = last_ticket.ticket_number + 1
+            else:
+                self.ticket_number = 1
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering = ["-created_at"]

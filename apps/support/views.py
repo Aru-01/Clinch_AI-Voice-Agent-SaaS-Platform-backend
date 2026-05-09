@@ -43,6 +43,9 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
                 business_id=user.business_id
             ).select_related("business", "creator")
 
+        # Fix N+1 queries for nested messages, notes, and their senders
+        queryset = queryset.prefetch_related("messages__sender", "notes__sender")
+
         status_param = self.request.query_params.get("status")
         if status_param:
             queryset = queryset.filter(status=status_param)
@@ -76,12 +79,12 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop("partial", False)
         instance = self.get_object()
 
-        # Only allow updating 'status'
-        allowed_fields = {"status"}
+        # Allow updating 'status' and optionally providing 'note'
+        allowed_fields = {"status", "note"}
         update_fields = set(request.data.keys())
         if not update_fields.issubset(allowed_fields):
             return Response(
-                {"detail": "You can only update the status field."},
+                {"detail": "You can only update the status field and optionally add a note."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -90,6 +93,17 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         self.perform_update(serializer)
 
         return Response(serializer.data)
+
+    def perform_update(self, serializer):
+        note_text = serializer.validated_data.pop("note", None)
+        ticket = serializer.save()
+        
+        if note_text:
+            TicketNote.objects.create(
+                ticket=ticket,
+                sender=self.request.user,
+                note=note_text
+            )
 
     def destroy(self, request, *args, **kwargs):
         return Response(

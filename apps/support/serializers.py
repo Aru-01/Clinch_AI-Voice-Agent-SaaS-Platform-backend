@@ -10,12 +10,11 @@ class UserLiteSerializer(serializers.ModelSerializer):
 
 
 class TicketMessageSerializer(serializers.ModelSerializer):
-    sender = UserLiteSerializer(read_only=True)
 
     class Meta:
         model = TicketMessage
-        fields = ["id", "ticket", "sender", "message", "created_at"]
-        read_only_fields = ["id", "ticket", "sender", "created_at"]
+        fields = ["id", "message"]
+        read_only_fields = ["id"]
 
 
 class TicketNoteSerializer(serializers.ModelSerializer):
@@ -33,19 +32,24 @@ class SupportTicketSerializer(serializers.ModelSerializer):
     messages = TicketMessageSerializer(many=True, read_only=True)
     notes = serializers.SerializerMethodField()
     message = serializers.CharField(
-        write_only=True, required=True, help_text="Initial message for the ticket"
+        write_only=True, required=False, help_text="Initial message for the ticket"
+    )
+    note = serializers.CharField(
+        write_only=True, required=False, help_text="Internal note by system admin"
     )
 
     class Meta:
         model = SupportTicket
         fields = [
             "id",
+            "ticket_number",
             "business",
             "business_name",
             "creator",
             "subject",
             "status",
             "message",
+            "note",
             "messages",
             "notes",
             "created_at",
@@ -53,6 +57,7 @@ class SupportTicketSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "ticket_number",
             "business",
             "business_name",
             "creator",
