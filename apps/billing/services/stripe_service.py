@@ -5,6 +5,7 @@ Never call stripe.* directly from views — always use this module.
 """
 
 import stripe
+from datetime import timezone as dt_timezone
 from django.conf import settings
 from django.utils import timezone
 
@@ -213,14 +214,25 @@ class StripeService:
         )
 
         _get = StripeService._stripe_get
+
+        # Newer Stripe API: period dates live on items.data[0], not subscription root
         raw_start = _get(stripe_sub, "current_period_start")
         raw_end = _get(stripe_sub, "current_period_end")
 
         if not raw_start or not raw_end:
+            # Fall back to items[0] (Stripe API >= 2025-xx moves fields here)
+            try:
+                item = stripe_sub["items"]["data"][0]
+                raw_start = _get(item, "current_period_start")
+                raw_end = _get(item, "current_period_end")
+            except (KeyError, IndexError, TypeError):
+                pass
+
+        if not raw_start or not raw_end:
             return
 
-        current_period_start = timezone.datetime.fromtimestamp(raw_start, tz=timezone.utc)
-        current_period_end = timezone.datetime.fromtimestamp(raw_end, tz=timezone.utc)
+        current_period_start = timezone.datetime.fromtimestamp(raw_start, tz=dt_timezone.utc)
+        current_period_end = timezone.datetime.fromtimestamp(raw_end, tz=dt_timezone.utc)
 
         # Check for renewal: same plan_price on same business
         existing_active = Subscription.objects.filter(
@@ -272,6 +284,29 @@ class StripeService:
             return default
 
     @staticmethod
+    def _invoice_subscription_id(stripe_invoice):
+        """
+        Extract the subscription ID from a Stripe invoice.
+        Older API: invoice['subscription']
+        Newer API: invoice['parent']['subscription_details']['subscription']
+        """
+        _get = StripeService._stripe_get
+        # Try old location first
+        sub_id = _get(stripe_invoice, "subscription")
+        if sub_id:
+            return sub_id
+        # Try new location (Stripe API >= 2025)
+        try:
+            parent = stripe_invoice["parent"]
+            if parent:
+                sub_details = parent["subscription_details"]
+                if sub_details:
+                    return sub_details["subscription"]
+        except (KeyError, TypeError):
+            pass
+        return None
+
+    @staticmethod
     def handle_invoice_paid(stripe_invoice):
         """
         Called on invoice.paid.
@@ -281,7 +316,7 @@ class StripeService:
         from apps.billing.models import Subscription, Invoice, InvoiceStatus
 
         _get = StripeService._stripe_get
-        stripe_sub_id = _get(stripe_invoice, "subscription")
+        stripe_sub_id = StripeService._invoice_subscription_id(stripe_invoice)
         if not stripe_sub_id:
             return
 
@@ -309,7 +344,6 @@ class StripeService:
             defaults={
                 "subscription": sub,
                 "business": sub.business,
-                "stripe_payment_intent_id": _get(stripe_invoice, "payment_intent"),
                 "amount": amount_paid / 100,
                 "currency": _get(stripe_invoice, "currency", "usd"),
                 "status": InvoiceStatus.PAID,
@@ -330,7 +364,7 @@ class StripeService:
         from apps.billing.models import Subscription, Invoice, InvoiceStatus
 
         _get = StripeService._stripe_get
-        stripe_sub_id = _get(stripe_invoice, "subscription")
+        stripe_sub_id = StripeService._invoice_subscription_id(stripe_invoice)
         if not stripe_sub_id:
             return
 
@@ -346,7 +380,6 @@ class StripeService:
             defaults={
                 "subscription": sub,
                 "business": sub.business,
-                "stripe_payment_intent_id": _get(stripe_invoice, "payment_intent"),
                 "amount": _get(stripe_invoice, "amount_due", 0) / 100,
                 "currency": _get(stripe_invoice, "currency", "usd"),
                 "status": InvoiceStatus.UNPAID,

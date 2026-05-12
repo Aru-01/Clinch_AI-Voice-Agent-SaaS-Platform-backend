@@ -43,10 +43,9 @@ class SystemAdminCreateSerializer(serializers.Serializer):
 
 class BusinessAdminListSerializer(serializers.ModelSerializer):
     join_date = serializers.DateTimeField(source="created_at", format="%Y-%m-%d")
-
-    plan = serializers.CharField(default="Free", read_only=True)
-    plan_start_date = serializers.CharField(default=None, read_only=True)
-    plan_end_date = serializers.CharField(default=None, read_only=True)
+    plan = serializers.SerializerMethodField()
+    plan_start_date = serializers.SerializerMethodField()
+    plan_end_date = serializers.SerializerMethodField()
     total_leads = serializers.IntegerField(default=0, read_only=True)
     total_call = serializers.IntegerField(default=0, read_only=True)
     conversation_rate = serializers.FloatField(default=0.0, read_only=True)
@@ -69,3 +68,32 @@ class BusinessAdminListSerializer(serializers.ModelSerializer):
             "conversation_rate",
             "book_appointment",
         ]
+
+    def _active_sub(self, obj):
+        if not obj.business:
+            return None
+        from apps.billing.models import Subscription, SubscriptionStatus
+        return (
+            obj.business.subscriptions
+            .filter(status=SubscriptionStatus.ACTIVE)
+            .select_related("plan_price__plan")
+            .first()
+        )
+
+    def get_plan(self, obj):
+        sub = self._active_sub(obj)
+        if sub:
+            return f"{sub.plan_price.plan.name} ({sub.plan_price.billing_cycle})"
+        return "Free"
+
+    def get_plan_start_date(self, obj):
+        sub = self._active_sub(obj)
+        if sub and sub.current_period_start:
+            return sub.current_period_start.strftime("%Y-%m-%d")
+        return None
+
+    def get_plan_end_date(self, obj):
+        sub = self._active_sub(obj)
+        if sub and sub.current_period_end:
+            return sub.current_period_end.strftime("%Y-%m-%d")
+        return None

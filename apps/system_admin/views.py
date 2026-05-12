@@ -12,7 +12,8 @@ from apps.system_admin import schemas
 from apps.accounts.serializers import UserSerializer
 from apps.accounts.models import OTPCode
 from apps.accounts.services import utils
-
+from apps.billing.models import Invoice, Subscription
+from apps.billing.serializers import InvoiceSerializer, SubscriptionSerializer
 from apps.system_admin.services.stats_service import StatsService
 
 User = get_user_model()
@@ -128,3 +129,33 @@ class SystemAdminStatsView(APIView):
     def get(self, request):
         stats_data = StatsService.get_dashboard_stats()
         return Response(stats_data)
+
+
+class AdminAllInvoicesView(generics.ListAPIView):
+    """
+    GET /api/system-admin/invoices/
+    System admin sees all invoices across all businesses.
+    """
+
+    serializer_class = InvoiceSerializer
+    permission_classes = [IsSystemAdmin]
+
+    def get_queryset(self):
+        return Invoice.objects.select_related(
+            "business", "subscription__plan_price__plan"
+        ).order_by("-created_at")
+
+
+class AdminAllSubscriptionsView(generics.ListAPIView):
+    """
+    GET /api/system-admin/subscriptions/
+    System admin sees all active subscriptions across all businesses.
+    """
+
+    serializer_class = SubscriptionSerializer
+    permission_classes = [IsSystemAdmin]
+
+    def get_queryset(self):
+        return Subscription.objects.select_related(
+            "business", "plan_price__plan"
+        ).order_by("-created_at")
