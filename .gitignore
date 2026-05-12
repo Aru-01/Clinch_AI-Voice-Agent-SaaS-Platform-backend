@@ -18,3 +18,5 @@ apps/system_admin/services/__pycache__
 core/__pycache__
 apps/configuration/__pycache__
 apps/support/__pycache__
+
+apps/billing

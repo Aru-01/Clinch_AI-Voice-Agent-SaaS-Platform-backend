@@ -10,13 +10,14 @@ SECRET_KEY = config("SECRET_KEY")
 
 DEBUG = config("DEBUG", default=False, cast=bool)
 
-ALLOWED_HOSTS = config(
-    "ALLOWED_HOSTS",
-    default="",
-    cast=lambda v: [s.strip() for s in v.split(",") if s.strip()],
-)
+# ALLOWED_HOSTS = config(
+#     "ALLOWED_HOSTS",
+#     default="",
+#     cast=lambda v: [s.strip() for s in v.split(",") if s.strip()],
+# )
 
-
+ALLOWED_HOSTS = ["*"]
+CSRF_TRUSTED_ORIGINS = ["https://charissa-intuitable-corroboratorily.ngrok-free.dev"]
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -36,6 +37,7 @@ CUSTOM_APPS = [
     "apps.system_admin",
     "apps.configuration",
     "apps.support",
+    "apps.billing",
 ]
 
 INSTALLED_APPS += CUSTOM_APPS
@@ -179,3 +181,8 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@clinchsaas.co
 # Encryption key for sensitive config fields (Fernet)
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ENCRYPTION_KEY = config("ENCRYPTION_KEY")
+
+# Stripe Payment Integration
+STRIPE_SECRET_KEY = config("STRIPE_SECRET_KEY", default="")
+STRIPE_PUBLISHABLE_KEY = config("STRIPE_PUBLISHABLE_KEY", default="")
+STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
