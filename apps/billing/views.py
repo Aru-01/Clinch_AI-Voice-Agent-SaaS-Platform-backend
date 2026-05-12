@@ -191,61 +191,51 @@ class PaymentSuccessView(APIView):
     def get(self, request):
         session_id = request.GET.get("session_id")
         invoice_obj = None
+        stripe_invoice_url = None
 
-        if session_id:
+        if session_id and session_id.startswith("cs_"):
             try:
-                # 1. Try to find the local invoice first
-                # Check if we have an invoice linked to a subscription that has this business
-                if request.user.is_authenticated and hasattr(request.user, "business"):
+                # Fetch the Stripe session to get subscription + invoice IDs
+                session = stripe.checkout.Session.retrieve(
+                    session_id, expand=["subscription", "invoice"]
+                )
+
+                _get = StripeService._stripe_get
+
+                # Ensure subscription exists locally
+                stripe_sub = _get(session, "subscription")
+                if stripe_sub:
+                    if isinstance(stripe_sub, str):
+                        stripe_sub = stripe.Subscription.retrieve(stripe_sub)
+                    StripeService.handle_subscription_created_or_updated(stripe_sub)
+
+                # Ensure invoice exists locally
+                stripe_invoice = _get(session, "invoice")
+                if stripe_invoice:
+                    if isinstance(stripe_invoice, str):
+                        stripe_invoice = stripe.Invoice.retrieve(stripe_invoice)
+                    StripeService.handle_invoice_paid(stripe_invoice)
+
+                    # Look up the local invoice by stripe_invoice_id
+                    invoice_obj = Invoice.objects.filter(
+                        stripe_invoice_id=_get(stripe_invoice, "id")
+                    ).first()
+
+                    # Fallback: if still not local, link to hosted invoice URL
+                    if not invoice_obj:
+                        stripe_invoice_url = _get(stripe_invoice, "hosted_invoice_url")
+
+                # If no invoice in session yet (subscription-only checkout), try by business
+                if not invoice_obj and request.user.is_authenticated and hasattr(request.user, "business"):
                     invoice_obj = (
                         Invoice.objects.filter(business=request.user.business)
                         .order_by("-created_at")
                         .first()
                     )
 
-                # 2. If local invoice not found (webhook might be slow),
-                # fetch the Stripe Invoice ID from the session directly
-                if not invoice_obj and session_id.startswith("cs_"):
-                    session = stripe.checkout.Session.retrieve(
-                        session_id, expand=["subscription", "invoice"]
-                    )
-
-                    # SAFETY NET: If subscription hasn't been created yet, do it now
-                    stripe_sub = getattr(session, "subscription", None)
-                    if stripe_sub:
-                        # If it's just an ID, retrieve the full object
-                        if isinstance(stripe_sub, str):
-                            stripe_sub = stripe.Subscription.retrieve(stripe_sub)
-                        StripeService.handle_subscription_created_or_updated(stripe_sub)
-
-                    stripe_invoice = getattr(session, "invoice", None)
-                    if stripe_invoice:
-                        # If it's just an ID, retrieve the full object
-                        if isinstance(stripe_invoice, str):
-                            stripe_invoice = stripe.Invoice.retrieve(stripe_invoice)
-                        StripeService.handle_invoice_paid(stripe_invoice)
-
-                    # Try to find the local invoice again after manual sync
-                    if stripe_invoice:
-                        invoice_obj = Invoice.objects.filter(
-                            stripe_invoice_id=getattr(stripe_invoice, "id", None)
-                        ).first()
-
-                    # If STILL not found locally, show the hosted URL as fallback
-                    if not invoice_obj and stripe_invoice:
-                        return render(
-                            request,
-                            "billing/success.html",
-                            {
-                                "session_id": session_id,
-                                "stripe_invoice_url": stripe_invoice.hosted_invoice_url,
-                                "is_processing": True,
-                            },
-                        )
             except Exception as e:
                 import logging
-
-                logging.getLogger(__name__).error(f"Error in success view: {e}")
+                logging.getLogger(__name__).error(f"PaymentSuccessView error: {e}", exc_info=True)
 
         return render(
             request,
@@ -253,6 +243,7 @@ class PaymentSuccessView(APIView):
             {
                 "session_id": session_id,
                 "invoice_id": invoice_obj.id if invoice_obj else None,
+                "stripe_invoice_url": stripe_invoice_url,
             },
         )
 
@@ -450,24 +441,26 @@ class StripeWebhookView(APIView):
         logger = logging.getLogger(__name__)
         logger.info(f"Received Stripe Webhook: {event_type}")
 
+        obj_id = data_obj["id"]
+
         if event_type == "customer.subscription.created":
             StripeService.handle_subscription_created_or_updated(data_obj)
-            logger.info(f"Subscription Created: {data_obj.get('id')}")
+            logger.info(f"Subscription Created: {obj_id}")
 
         elif event_type == "customer.subscription.updated":
             StripeService.handle_subscription_created_or_updated(data_obj)
-            logger.info(f"Subscription Updated: {data_obj.get('id')}")
+            logger.info(f"Subscription Updated: {obj_id}")
 
         elif event_type == "customer.subscription.deleted":
             StripeService.handle_subscription_deleted(data_obj)
-            logger.info(f"Subscription Deleted: {data_obj.get('id')}")
+            logger.info(f"Subscription Deleted: {obj_id}")
 
         elif event_type == "invoice.paid":
             StripeService.handle_invoice_paid(data_obj)
-            logger.info(f"Invoice Paid: {data_obj.get('id')}")
+            logger.info(f"Invoice Paid: {obj_id}")
 
         elif event_type == "invoice.payment_failed":
             StripeService.handle_invoice_payment_failed(data_obj)
-            logger.info(f"Invoice Payment Failed: {data_obj.get('id')}")
+            logger.info(f"Invoice Payment Failed: {obj_id}")
 
         return Response({"status": "ok"}, status=status.HTTP_200_OK)

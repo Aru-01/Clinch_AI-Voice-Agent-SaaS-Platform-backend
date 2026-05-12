@@ -180,9 +180,16 @@ class StripeService:
         from apps.billing.models import Subscription, SubscriptionStatus, PlanPrice
         from apps.accounts.models import Business
 
-        metadata = getattr(stripe_sub, "metadata", {})
-        business_id = metadata.get("business_id")
-        plan_price_id = metadata.get("plan_price_id")
+        metadata = stripe_sub["metadata"] if "metadata" in stripe_sub else {}
+        # metadata is a StripeObject — use [] not .get()
+        try:
+            business_id = metadata["business_id"]
+        except (KeyError, TypeError):
+            business_id = None
+        try:
+            plan_price_id = metadata["plan_price_id"]
+        except (KeyError, TypeError):
+            plan_price_id = None
 
         if not business_id or not plan_price_id:
             return
@@ -194,18 +201,26 @@ class StripeService:
             return
 
         stripe_status = stripe_sub["status"]
+
+        # Skip incomplete/trialing subscriptions — period dates may not exist yet
+        if stripe_status not in ("active", "past_due", "canceled", "cancelled"):
+            return
+
         local_status = (
             SubscriptionStatus.ACTIVE
             if stripe_status == "active"
             else SubscriptionStatus.EXPIRED
         )
 
-        current_period_start = timezone.datetime.fromtimestamp(
-            stripe_sub["current_period_start"], tz=timezone.utc
-        )
-        current_period_end = timezone.datetime.fromtimestamp(
-            stripe_sub["current_period_end"], tz=timezone.utc
-        )
+        _get = StripeService._stripe_get
+        raw_start = _get(stripe_sub, "current_period_start")
+        raw_end = _get(stripe_sub, "current_period_end")
+
+        if not raw_start or not raw_end:
+            return
+
+        current_period_start = timezone.datetime.fromtimestamp(raw_start, tz=timezone.utc)
+        current_period_end = timezone.datetime.fromtimestamp(raw_end, tz=timezone.utc)
 
         # Check for renewal: same plan_price on same business
         existing_active = Subscription.objects.filter(
@@ -248,6 +263,15 @@ class StripeService:
             pass
 
     @staticmethod
+    def _stripe_get(obj, key, default=None):
+        """Unified getter for both Stripe objects and plain dicts."""
+        try:
+            val = obj[key]
+            return val if val is not None else default
+        except (KeyError, TypeError):
+            return default
+
+    @staticmethod
     def handle_invoice_paid(stripe_invoice):
         """
         Called on invoice.paid.
@@ -256,9 +280,15 @@ class StripeService:
         """
         from apps.billing.models import Subscription, Invoice, InvoiceStatus
 
-        stripe_sub_id = getattr(stripe_invoice, "subscription", None)
+        _get = StripeService._stripe_get
+        stripe_sub_id = _get(stripe_invoice, "subscription")
         if not stripe_sub_id:
             return
+
+        # amount_paid may be 0 for $0 invoices; fall back to amount_due
+        amount_paid = _get(stripe_invoice, "amount_paid", 0)
+        if not amount_paid:
+            amount_paid = _get(stripe_invoice, "amount_due", 0)
 
         try:
             sub = Subscription.objects.select_related(
@@ -266,7 +296,6 @@ class StripeService:
             ).get(stripe_subscription_id=stripe_sub_id)
         except Subscription.DoesNotExist:
             # Race condition: subscription webhook hasn't arrived yet
-            # Fetch Stripe subscription and create local record
             try:
                 stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
                 sub = StripeService.handle_subscription_created_or_updated(stripe_sub)
@@ -276,16 +305,15 @@ class StripeService:
                 return
 
         Invoice.objects.update_or_create(
-            stripe_invoice_id=stripe_invoice["id"],
+            stripe_invoice_id=_get(stripe_invoice, "id"),
             defaults={
                 "subscription": sub,
                 "business": sub.business,
-                "stripe_payment_intent_id": stripe_invoice.get("payment_intent"),
-                "amount": stripe_invoice["amount_paid"] / 100,
-                "currency": stripe_invoice["currency"],
+                "stripe_payment_intent_id": _get(stripe_invoice, "payment_intent"),
+                "amount": amount_paid / 100,
+                "currency": _get(stripe_invoice, "currency", "usd"),
                 "status": InvoiceStatus.PAID,
                 "paid_at": timezone.now(),
-                # Snapshot
                 "snapshot_business_name": sub.business.name,
                 "snapshot_plan_name": sub.plan_price.plan.name,
                 "snapshot_billing_cycle": sub.plan_price.billing_cycle,
@@ -301,7 +329,8 @@ class StripeService:
         """
         from apps.billing.models import Subscription, Invoice, InvoiceStatus
 
-        stripe_sub_id = getattr(stripe_invoice, "subscription", None)
+        _get = StripeService._stripe_get
+        stripe_sub_id = _get(stripe_invoice, "subscription")
         if not stripe_sub_id:
             return
 
@@ -313,15 +342,14 @@ class StripeService:
             return
 
         Invoice.objects.update_or_create(
-            stripe_invoice_id=stripe_invoice["id"],
+            stripe_invoice_id=_get(stripe_invoice, "id"),
             defaults={
                 "subscription": sub,
                 "business": sub.business,
-                "stripe_payment_intent_id": stripe_invoice.get("payment_intent"),
-                "amount": stripe_invoice["amount_due"] / 100,
-                "currency": stripe_invoice["currency"],
+                "stripe_payment_intent_id": _get(stripe_invoice, "payment_intent"),
+                "amount": _get(stripe_invoice, "amount_due", 0) / 100,
+                "currency": _get(stripe_invoice, "currency", "usd"),
                 "status": InvoiceStatus.UNPAID,
-                # Snapshot
                 "snapshot_business_name": sub.business.name,
                 "snapshot_plan_name": sub.plan_price.plan.name,
                 "snapshot_billing_cycle": sub.plan_price.billing_cycle,
