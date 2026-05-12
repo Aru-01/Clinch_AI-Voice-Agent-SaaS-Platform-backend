@@ -18,6 +18,7 @@ class BusinessSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
+    active_subscription = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -30,11 +31,33 @@ class UserSerializer(serializers.ModelSerializer):
             "business",
             "is_verified",
             "roles",
+            "active_subscription",
         ]
-        read_only_fields = ["id", "email", "business", "is_verified", "roles"]
+        read_only_fields = ["id", "email", "business", "is_verified", "roles", "active_subscription"]
 
     def get_roles(self, obj):
         return [user_role.role.name for user_role in obj.user_roles.all()]
+
+    def get_active_subscription(self, obj):
+        if not hasattr(obj, "business") or not obj.business:
+            return None
+        from apps.billing.models import Subscription, SubscriptionStatus
+
+        sub = obj.business.subscriptions.filter(
+            status=SubscriptionStatus.ACTIVE
+        ).select_related("plan_price__plan").first()
+
+        if not sub:
+            return None
+
+        return {
+            "plan_name": sub.plan_price.plan.name,
+            "billing_cycle": sub.plan_price.billing_cycle,
+            "price": str(sub.plan_price.price),
+            "currency": sub.plan_price.currency,
+            "status": sub.status,
+            "current_period_end": sub.current_period_end,
+        }
 
 
 class RegisterSerializer(serializers.Serializer):

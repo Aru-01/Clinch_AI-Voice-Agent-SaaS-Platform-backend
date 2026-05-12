@@ -18,5 +18,12 @@ apps/system_admin/services/__pycache__
 core/__pycache__
 apps/configuration/__pycache__
 apps/support/__pycache__
+apps/billing/__pycache__
+apps/billing/services/__pycache__
 
-apps/billing
+
+BILLING_API_QUICK_REFERENCE.md
+BILLING_FIXES_SUMMARY.md
+PROJECT_REVIEW.md
+
+

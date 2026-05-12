@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice - {{ invoice.id }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; color: #334155; margin: 0; padding: 40px; background: #f1f5f9; }
+        .invoice-box { max-width: 800px; margin: auto; padding: 40px; background: #fff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; }
+        .logo { font-size: 24px; font-weight: 700; color: #6366f1; }
+        .invoice-details { text-align: right; }
+        .invoice-details h2 { margin: 0; color: #1e293b; font-size: 28px; }
+        .invoice-details p { margin: 5px 0; color: #64748b; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+        .info-section h3 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 10px; }
+        .info-section p { margin: 0; font-weight: 600; color: #1e293b; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+        table th { background: #f8fafc; text-align: left; padding: 12px; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 14px; }
+        table td { padding: 16px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+        .total-section { display: flex; justify-content: flex-end; }
+        .total-box { background: #f8fafc; padding: 20px; border-radius: 12px; min-width: 250px; }
+        .total-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .total-row.grand-total { border-top: 2px solid #e2e8f0; padding-top: 10px; margin-top: 10px; font-weight: 700; font-size: 20px; color: #6366f1; }
+        .footer { text-align: center; margin-top: 40px; color: #94a3b8; font-size: 12px; }
+        @media print {
+            body { background: none; padding: 0; }
+            .invoice-box { box-shadow: none; border: none; max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-box">
+        <div class="header">
+            <div class="logo">CLINCH SAAS</div>
+            <div class="invoice-details">
+                <h2>INVOICE</h2>
+                <p>#{{ invoice.stripe_invoice_id|default:invoice.id }}</p>
+                <p>Date: {{ invoice.paid_at|date:"M d, Y" }}</p>
+            </div>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-section">
+                <h3>Billed To</h3>
+                <p>{{ invoice.snapshot_business_name }}</p>
+                <p>{{ invoice.business.owner.email }}</p>
+            </div>
+            <div class="info-section">
+                <h3>Payment Method</h3>
+                <p>Stripe Credit Card</p>
+                <p>Status: <span style="color: #10b981;">{{ invoice.status|upper }}</span></p>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Cycle</th>
+                    <th style="text-align: right;">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <strong>{{ invoice.snapshot_plan_name }} Plan</strong><br>
+                        <small style="color: #64748b;">Subscription for the next {{ invoice.snapshot_billing_cycle }}</small>
+                    </td>
+                    <td>{{ invoice.snapshot_billing_cycle|capfirst }}</td>
+                    <td style="text-align: right;">{{ invoice.snapshot_price }} {{ invoice.currency|upper }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="total-section">
+            <div class="total-box">
+                <div class="total-row">
+                    <span>Subtotal</span>
+                    <span>{{ invoice.snapshot_price }} {{ invoice.currency|upper }}</span>
+                </div>
+                <div class="total-row">
+                    <span>Tax (0%)</span>
+                    <span>0.00</span>
+                </div>
+                <div class="total-row grand-total">
+                    <span>Total</span>
+                    <span>{{ invoice.amount }} {{ invoice.currency|upper }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Thank you for choosing Clinch SAAS!</p>
+            <p>If you have any questions, please contact support@clinchsaas.com</p>
+        </div>
+    </div>
+</body>
+</html>
