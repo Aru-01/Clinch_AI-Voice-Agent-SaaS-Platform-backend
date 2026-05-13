@@ -315,6 +315,24 @@ invoice_download_schema = {
     },
 }
 
+payment_success_schema = {
+    "operation_summary": "Payment Success Page",
+    "operation_description": "Rendered after successful Stripe checkout. Syncs subscription and invoice from Stripe then shows download link. Pass `session_id` from Stripe redirect.",
+    "tags": [BILLING_BUSINESS_TAG],
+    "manual_parameters": [
+        openapi.Parameter(
+            "session_id",
+            openapi.IN_QUERY,
+            description="Stripe checkout session ID (cs_test_...)",
+            type=openapi.TYPE_STRING,
+            required=True,
+        )
+    ],
+    "responses": {
+        200: openapi.Response(description="Success HTML page rendered"),
+    },
+}
+
 # ─── Webhooks ────────────────────────────────────────────────────────────────
 
 stripe_webhook_schema = {

@@ -9,9 +9,17 @@ class BusinessSerializer(serializers.ModelSerializer):
     class Meta:
         model = Business
         fields = [
-            "id", "name", "description", "address", 
-            "open_time", "close_time", "off_days", 
-            "human_agent_phone", "is_active", "created_at", "updated_at"
+            "id",
+            "name",
+            "description",
+            "address",
+            "open_time",
+            "close_time",
+            "off_days",
+            "human_agent_phone",
+            "is_active",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
@@ -33,30 +41,57 @@ class UserSerializer(serializers.ModelSerializer):
             "roles",
             "active_subscription",
         ]
-        read_only_fields = ["id", "email", "business", "is_verified", "roles", "active_subscription"]
+        read_only_fields = [
+            "id",
+            "email",
+            "business",
+            "is_verified",
+            "roles",
+            "active_subscription",
+        ]
 
     def get_roles(self, obj):
-        return [user_role.role.name for user_role in obj.user_roles.all()]
+        return [ur.role.name for ur in obj.user_roles.all()]
+
+    def _get_active_sub(self, obj):
+        if hasattr(obj, "_cached_active_sub"):
+            return obj._cached_active_sub
+        sub = None
+        if getattr(obj, "business", None):
+            from apps.billing.models import SubscriptionStatus
+
+            business = obj.business
+            prefetch_cache = getattr(business, "_prefetched_objects_cache", {})
+            if "subscriptions" in prefetch_cache:
+                sub = next(
+                    (
+                        s
+                        for s in prefetch_cache["subscriptions"]
+                        if s.status == SubscriptionStatus.ACTIVE
+                    ),
+                    None,
+                )
+            else:
+                sub = (
+                    business.subscriptions.filter(status=SubscriptionStatus.ACTIVE)
+                    .select_related("plan_price__plan")
+                    .first()
+                )
+        obj._cached_active_sub = sub
+        return sub
 
     def get_active_subscription(self, obj):
-        if not hasattr(obj, "business") or not obj.business:
-            return None
-        from apps.billing.models import Subscription, SubscriptionStatus
-
-        sub = obj.business.subscriptions.filter(
-            status=SubscriptionStatus.ACTIVE
-        ).select_related("plan_price__plan").first()
-
+        sub = self._get_active_sub(obj)
         if not sub:
             return None
-
         return {
             "plan_name": sub.plan_price.plan.name,
             "billing_cycle": sub.plan_price.billing_cycle,
             "price": str(sub.plan_price.price),
             "currency": sub.plan_price.currency,
             "status": sub.status,
-            "current_period_end": sub.current_period_end,
+            "plan_start_date": sub.current_period_start,
+            "plan_end_date": sub.current_period_end,
         }
 
 
@@ -74,7 +109,9 @@ class RegisterSerializer(serializers.Serializer):
 
     def validate_phone(self, value):
         if User.objects.filter(phone=value).exists():
-            raise serializers.ValidationError("A user with this phone number already exists.")
+            raise serializers.ValidationError(
+                "A user with this phone number already exists."
+            )
         return value
 
     def create(self, validated_data):
@@ -118,6 +155,8 @@ class ChangePasswordSerializer(serializers.Serializer):
     confirm_password = serializers.CharField(required=True)
 
     def validate(self, data):
-        if data['new_password'] != data['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        if data["new_password"] != data["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
         return data

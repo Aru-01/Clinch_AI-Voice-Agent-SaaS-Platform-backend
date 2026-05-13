@@ -71,7 +71,7 @@ class StripeService:
         )
         return customer.id
 
-    # ── Cancel Subscription ───────────────────────────────────────────────
+    # ── Cancel Subscription
 
     @staticmethod
     def cancel_subscription(stripe_subscription_id):
@@ -80,7 +80,7 @@ class StripeService:
         """
         return stripe.Subscription.cancel(stripe_subscription_id)
 
-    # ── Switch Plan (Proration) ────────────────────────────────────────────
+    # ── Switch Plan
 
     @staticmethod
     def switch_subscription_plan(stripe_subscription_id, new_stripe_price_id):
@@ -90,16 +90,16 @@ class StripeService:
         Returns the updated Stripe subscription object.
         """
         stripe_sub = stripe.Subscription.retrieve(stripe_subscription_id)
-        item_id = stripe_sub['items']['data'][0]['id']
+        item_id = stripe_sub["items"]["data"][0]["id"]
 
         updated_sub = stripe.Subscription.modify(
             stripe_subscription_id,
-            items=[{'id': item_id, 'price': new_stripe_price_id}],
-            proration_behavior='create_prorations',
+            items=[{"id": item_id, "price": new_stripe_price_id}],
+            proration_behavior="create_prorations",
         )
         return updated_sub
 
-    # ── Sync Product + Price to Stripe ────────────────────────────────────
+    # ── Sync Product + Price to Stripe
 
     @staticmethod
     def sync_plan_price_to_stripe(plan_price):
@@ -108,13 +108,10 @@ class StripeService:
         Call this whenever a system admin creates/edits a price.
         Sets plan_price.stripe_price_id and saves.
         """
-        # Ensure a Stripe product exists for this plan
         product = StripeService._get_or_create_stripe_product(plan_price.plan)
 
-        # Map billing_cycle → Stripe interval
         interval = "month" if plan_price.billing_cycle == "monthly" else "year"
 
-        # Create new Stripe Price (Stripe prices are immutable, always create new)
         stripe_price = stripe.Price.create(
             product=product.id,
             unit_amount=int(plan_price.price * 100),  # convert to cents
@@ -137,19 +134,16 @@ class StripeService:
         Get or create a Stripe Product for a Plan.
         Uses plan metadata to find existing products.
         """
-        # Search existing products by metadata
         products = stripe.Product.search(
             query=f'metadata["plan_id"]:"{plan.id}"',
             limit=1,
         )
         if products.data:
             product = products.data[0]
-            # Update name if changed
             if product.name != plan.name:
                 stripe.Product.modify(product.id, name=plan.name)
             return product
 
-        # Create new product
         product = stripe.Product.create(
             name=plan.name,
             description=plan.description or plan.name,
@@ -157,8 +151,7 @@ class StripeService:
         )
         return product
 
-    # ── Webhook Signature Verification ───────────────────────────────────
-
+    # ── Webhook Signature Verification
     @staticmethod
     def construct_webhook_event(payload, sig_header):
         """
@@ -169,8 +162,7 @@ class StripeService:
             payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
         )
 
-    # ── Handle Webhook Events ────────────────────────────────────────────
-
+    # ── Handle Webhook Events
     @staticmethod
     def handle_subscription_created_or_updated(stripe_sub):
         """
@@ -182,7 +174,6 @@ class StripeService:
         from apps.accounts.models import Business
 
         metadata = stripe_sub["metadata"] if "metadata" in stripe_sub else {}
-        # metadata is a StripeObject — use [] not .get()
         try:
             business_id = metadata["business_id"]
         except (KeyError, TypeError):
@@ -203,7 +194,6 @@ class StripeService:
 
         stripe_status = stripe_sub["status"]
 
-        # Skip incomplete/trialing subscriptions — period dates may not exist yet
         if stripe_status not in ("active", "past_due", "canceled", "cancelled"):
             return
 
@@ -215,12 +205,10 @@ class StripeService:
 
         _get = StripeService._stripe_get
 
-        # Newer Stripe API: period dates live on items.data[0], not subscription root
         raw_start = _get(stripe_sub, "current_period_start")
         raw_end = _get(stripe_sub, "current_period_end")
 
         if not raw_start or not raw_end:
-            # Fall back to items[0] (Stripe API >= 2025-xx moves fields here)
             try:
                 item = stripe_sub["items"]["data"][0]
                 raw_start = _get(item, "current_period_start")
@@ -231,20 +219,25 @@ class StripeService:
         if not raw_start or not raw_end:
             return
 
-        current_period_start = timezone.datetime.fromtimestamp(raw_start, tz=dt_timezone.utc)
-        current_period_end = timezone.datetime.fromtimestamp(raw_end, tz=dt_timezone.utc)
+        current_period_start = timezone.datetime.fromtimestamp(
+            raw_start, tz=dt_timezone.utc
+        )
+        current_period_end = timezone.datetime.fromtimestamp(
+            raw_end, tz=dt_timezone.utc
+        )
 
-        # Check for renewal: same plan_price on same business
-        existing_active = Subscription.objects.filter(
-            business=business,
-            plan_price=plan_price,
-            status=SubscriptionStatus.ACTIVE
-        ).exclude(stripe_subscription_id=stripe_sub["id"]).first()
+        existing_active = (
+            Subscription.objects.filter(
+                business=business,
+                plan_price=plan_price,
+                status=SubscriptionStatus.ACTIVE,
+            )
+            .exclude(stripe_subscription_id=stripe_sub["id"])
+            .first()
+        )
 
         if existing_active and existing_active.current_period_end:
-            # Renewal scenario: carry over the previous subscription's end as new start
             current_period_start = existing_active.current_period_end
-            # Cancel the previous subscription
             existing_active.cancel(reason="Replaced by renewal subscription")
 
         sub, _ = Subscription.objects.update_or_create(
@@ -291,11 +284,9 @@ class StripeService:
         Newer API: invoice['parent']['subscription_details']['subscription']
         """
         _get = StripeService._stripe_get
-        # Try old location first
         sub_id = _get(stripe_invoice, "subscription")
         if sub_id:
             return sub_id
-        # Try new location (Stripe API >= 2025)
         try:
             parent = stripe_invoice["parent"]
             if parent:
@@ -320,7 +311,6 @@ class StripeService:
         if not stripe_sub_id:
             return
 
-        # amount_paid may be 0 for $0 invoices; fall back to amount_due
         amount_paid = _get(stripe_invoice, "amount_paid", 0)
         if not amount_paid:
             amount_paid = _get(stripe_invoice, "amount_due", 0)
@@ -330,7 +320,6 @@ class StripeService:
                 "business", "plan_price__plan"
             ).get(stripe_subscription_id=stripe_sub_id)
         except Subscription.DoesNotExist:
-            # Race condition: subscription webhook hasn't arrived yet
             try:
                 stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
                 sub = StripeService.handle_subscription_created_or_updated(stripe_sub)

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Plan, PlanPrice, PlanFeature, Subscription, Invoice
+from apps.billing.models import Plan, PlanPrice, PlanFeature, Subscription, Invoice
 
 
 class PlanPriceInline(admin.TabularInline):
@@ -30,27 +30,39 @@ class PlanAdmin(admin.ModelAdmin):
             instance.save()
             if isinstance(instance, PlanPrice):
                 from .services.stripe_service import StripeService
+
                 try:
                     StripeService.sync_plan_price_to_stripe(instance)
                 except Exception as e:
                     from django.contrib import messages
+
                     messages.error(request, f"Stripe sync failed for price: {e}")
         formset.save_m2m()
 
 
 @admin.register(PlanPrice)
 class PlanPriceAdmin(admin.ModelAdmin):
-    list_display = ["id", "plan", "billing_cycle", "price", "currency", "stripe_price_id", "is_active"]
+    list_display = [
+        "id",
+        "plan",
+        "billing_cycle",
+        "price",
+        "currency",
+        "stripe_price_id",
+        "is_active",
+    ]
     list_filter = ["billing_cycle", "is_active"]
     readonly_fields = ["stripe_price_id", "created_at", "updated_at"]
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         from .services.stripe_service import StripeService
+
         try:
             StripeService.sync_plan_price_to_stripe(obj)
         except Exception as e:
             from django.contrib import messages
+
             messages.error(request, f"Stripe sync failed: {e}")
 
 
@@ -64,29 +76,49 @@ class PlanFeatureAdmin(admin.ModelAdmin):
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
     list_display = [
-        "id", "business", "plan_price", "status",
-        "current_period_start", "current_period_end", "created_at"
+        "id",
+        "business",
+        "plan_price",
+        "status",
+        "current_period_start",
+        "current_period_end",
+        "created_at",
     ]
     list_filter = ["status"]
     search_fields = ["business__name", "stripe_subscription_id"]
     readonly_fields = [
-        "stripe_subscription_id", "stripe_customer_id",
-        "current_period_start", "current_period_end",
-        "cancelled_at", "created_at", "updated_at"
+        "stripe_subscription_id",
+        "stripe_customer_id",
+        "current_period_start",
+        "current_period_end",
+        "cancelled_at",
+        "created_at",
+        "updated_at",
     ]
 
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
     list_display = [
-        "id", "business", "snapshot_plan_name", "snapshot_billing_cycle",
-        "amount", "currency", "status", "paid_at", "created_at"
+        "id",
+        "business",
+        "snapshot_plan_name",
+        "snapshot_billing_cycle",
+        "amount",
+        "currency",
+        "status",
+        "paid_at",
+        "created_at",
     ]
     list_filter = ["status", "snapshot_billing_cycle"]
     search_fields = ["business__name", "stripe_invoice_id", "snapshot_plan_name"]
     readonly_fields = [
-        "stripe_invoice_id", "stripe_payment_intent_id",
-        "snapshot_business_name", "snapshot_plan_name",
-        "snapshot_billing_cycle", "snapshot_price",
-        "paid_at", "created_at"
+        "stripe_invoice_id",
+        "stripe_payment_intent_id",
+        "snapshot_business_name",
+        "snapshot_plan_name",
+        "snapshot_billing_cycle",
+        "snapshot_price",
+        "paid_at",
+        "created_at",
     ]

@@ -1,29 +1,31 @@
 import stripe
-from django.conf import settings
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse
 from rest_framework import generics, status
-from rest_framework.permissions import IsAuthenticated, AllowAny, BasePermission
+from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Plan, PlanPrice, PlanFeature, Subscription, Invoice, SubscriptionStatus
-from .serializers import (
+from apps.billing.models import (
+    Plan,
+    PlanPrice,
+    Subscription,
+    Invoice,
+    SubscriptionStatus,
+)
+from apps.billing.serializers import (
     PlanListSerializer,
     PlanWriteSerializer,
-    PlanPriceWriteSerializer,
-    PlanFeatureSerializer,
     SubscriptionSerializer,
     SubscribeSerializer,
     CancelSubscriptionSerializer,
     SwitchPlanSerializer,
     InvoiceSerializer,
 )
-from .services.stripe_service import StripeService
+from apps.billing.services.stripe_service import StripeService
 from apps.system_admin.permissions import IsSystemAdmin
 from drf_yasg.utils import swagger_auto_schema
-from . import schemas
+from apps.billing import schemas
 
 
 class IsBusinessAdmin(BasePermission):
@@ -79,8 +81,6 @@ class PlanDetailView(generics.RetrieveAPIView):
     )
 
 
-# ─── System Admin: Plan CRUD (Separate views, no ViewSet) ────────────────────
-
 class AdminPlanCreateView(generics.CreateAPIView):
     """POST /api/billing/admin/plans/ — Create a new plan."""
 
@@ -133,22 +133,43 @@ class SubscribeView(APIView):
         serializer = SubscribeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        plan_price = PlanPrice.objects.get(
+        plan_price = PlanPrice.objects.select_related("plan").get(
             id=serializer.validated_data["plan_price_id"]
         )
         business = request.user.business
 
-        # Check if already subscribed to same plan
-        existing_active = Subscription.objects.filter(
-            business=business,
-            plan_price=plan_price,
-            status=SubscriptionStatus.ACTIVE
-        ).exists()
-        if existing_active:
-            return Response(
-                {"detail": "Already subscribed to this plan. Your subscription will auto-renew."},
-                status=status.HTTP_400_BAD_REQUEST,
+        # Check existing active subscription for this business
+        existing_active = (
+            Subscription.objects.filter(
+                business=business, status=SubscriptionStatus.ACTIVE
             )
+            .select_related("plan_price__plan")
+            .first()
+        )
+
+        if existing_active:
+            if existing_active.plan_price_id == plan_price.id:
+                # Same plan: already active, will auto-renew — block duplicate
+                return Response(
+                    {
+                        "detail": "Already subscribed to this plan. Your subscription will auto-renew.",
+                        "plan_end_date": existing_active.current_period_end,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            else:
+                # Different plan: cancel current subscription on Stripe first
+                try:
+                    if existing_active.stripe_subscription_id:
+                        StripeService.cancel_subscription(
+                            existing_active.stripe_subscription_id
+                        )
+                    existing_active.cancel(reason=f"Switched to {plan_price.plan.name}")
+                except stripe.error.StripeError as e:
+                    return Response(
+                        {"detail": f"Could not cancel current plan: {str(e)}"},
+                        status=status.HTTP_502_BAD_GATEWAY,
+                    )
 
         # Build success URL pointing to our Django view
         from django.urls import reverse
@@ -188,6 +209,7 @@ class PaymentSuccessView(APIView):
 
     permission_classes = [AllowAny]
 
+    @swagger_auto_schema(**schemas.payment_success_schema)
     def get(self, request):
         session_id = request.GET.get("session_id")
         invoice_obj = None
@@ -226,7 +248,11 @@ class PaymentSuccessView(APIView):
                         stripe_invoice_url = _get(stripe_invoice, "hosted_invoice_url")
 
                 # If no invoice in session yet (subscription-only checkout), try by business
-                if not invoice_obj and request.user.is_authenticated and hasattr(request.user, "business"):
+                if (
+                    not invoice_obj
+                    and request.user.is_authenticated
+                    and hasattr(request.user, "business")
+                ):
                     invoice_obj = (
                         Invoice.objects.filter(business=request.user.business)
                         .order_by("-created_at")
@@ -235,7 +261,10 @@ class PaymentSuccessView(APIView):
 
             except Exception as e:
                 import logging
-                logging.getLogger(__name__).error(f"PaymentSuccessView error: {e}", exc_info=True)
+
+                logging.getLogger(__name__).error(
+                    f"PaymentSuccessView error: {e}", exc_info=True
+                )
 
         return render(
             request,
@@ -256,9 +285,29 @@ class InvoiceDownloadView(APIView):
 
     permission_classes = [IsBusinessAdmin]
 
+    @swagger_auto_schema(**schemas.invoice_download_schema)
     def get(self, request, pk):
-        invoice = get_object_or_404(Invoice, pk=pk, business=request.user.business)
-        return render(request, "billing/invoice.html", {"invoice": invoice})
+        invoice = get_object_or_404(
+            Invoice.objects.select_related("business", "subscription"),
+            pk=pk,
+            business=request.user.business,
+        )
+        # Business.owner_id is a plain UUIDField (not FK), fetch owner email separately
+        from django.contrib.auth import get_user_model
+
+        owner_email = None
+        if invoice.business.owner_id:
+            owner_email = (
+                get_user_model()
+                .objects.filter(pk=invoice.business.owner_id)
+                .values_list("email", flat=True)
+                .first()
+            )
+        return render(
+            request,
+            "billing/invoice.html",
+            {"invoice": invoice, "owner_email": owner_email},
+        )
 
 
 class SwitchPlanView(APIView):
@@ -280,9 +329,13 @@ class SwitchPlanView(APIView):
         business = request.user.business
 
         # Get active subscription
-        sub = Subscription.objects.filter(
-            business=business, status=SubscriptionStatus.ACTIVE
-        ).select_related("plan_price__plan").first()
+        sub = (
+            Subscription.objects.filter(
+                business=business, status=SubscriptionStatus.ACTIVE
+            )
+            .select_related("plan_price__plan")
+            .first()
+        )
 
         if not sub:
             return Response(
@@ -306,8 +359,7 @@ class SwitchPlanView(APIView):
         try:
             # Call Stripe to switch with proration
             StripeService.switch_subscription_plan(
-                sub.stripe_subscription_id,
-                new_plan_price.stripe_price_id
+                sub.stripe_subscription_id, new_plan_price.stripe_price_id
             )
             # Update local subscription
             sub.plan_price = new_plan_price
@@ -368,9 +420,20 @@ class CancelSubscriptionView(APIView):
         serializer = CancelSubscriptionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        sub = Subscription.objects.filter(
-            business=request.user.business, status="active"
-        ).first()
+        sub = (
+            Subscription.objects.filter(
+                business=request.user.business, status=SubscriptionStatus.ACTIVE
+            )
+            .only(
+                "id",
+                "stripe_subscription_id",
+                "status",
+                "cancelled_at",
+                "cancel_reason",
+                "updated_at",
+            )
+            .first()
+        )
         if not sub:
             return Response(
                 {"detail": "No active subscription to cancel."},
@@ -407,7 +470,9 @@ class MyInvoiceListView(generics.ListAPIView):
     permission_classes = [IsBusinessAdmin]
 
     def get_queryset(self):
-        return Invoice.objects.filter(business=self.request.user.business)
+        return Invoice.objects.filter(
+            business=self.request.user.business
+        ).select_related("subscription__plan_price__plan")
 
 
 @method_decorator(csrf_exempt, name="dispatch")

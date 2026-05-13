@@ -70,15 +70,32 @@ class BusinessAdminListSerializer(serializers.ModelSerializer):
         ]
 
     def _active_sub(self, obj):
-        if not obj.business:
-            return None
-        from apps.billing.models import Subscription, SubscriptionStatus
-        return (
-            obj.business.subscriptions
-            .filter(status=SubscriptionStatus.ACTIVE)
-            .select_related("plan_price__plan")
-            .first()
-        )
+        if hasattr(obj, "_cached_active_sub"):
+            return obj._cached_active_sub
+        sub = None
+        if obj.business:
+            from apps.billing.models import SubscriptionStatus
+
+            business = obj.business
+            # Use prefetch cache when available (set by BusinessAdminListView queryset)
+            prefetch_cache = getattr(business, "_prefetched_objects_cache", {})
+            if "subscriptions" in prefetch_cache:
+                sub = next(
+                    (
+                        s
+                        for s in prefetch_cache["subscriptions"]
+                        if s.status == SubscriptionStatus.ACTIVE
+                    ),
+                    None,
+                )
+            else:
+                sub = (
+                    business.subscriptions.filter(status=SubscriptionStatus.ACTIVE)
+                    .select_related("plan_price__plan")
+                    .first()
+                )
+        obj._cached_active_sub = sub
+        return sub
 
     def get_plan(self, obj):
         sub = self._active_sub(obj)

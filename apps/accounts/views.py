@@ -317,7 +317,10 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return (
             User.objects.select_related("business")
-            .prefetch_related("user_roles__role")
+            .prefetch_related(
+                "user_roles__role",
+                "business__subscriptions__plan_price__plan",
+            )
             .get(pk=self.request.user.pk)
         )
 

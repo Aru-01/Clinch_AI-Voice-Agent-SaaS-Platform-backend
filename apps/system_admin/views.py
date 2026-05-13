@@ -30,7 +30,8 @@ class SystemUserListView(generics.ListAPIView):
 
     queryset = (
         User.objects.filter(user_roles__role__name="system_admin")
-        .prefetch_related("user_roles__role", "business")
+        .select_related("business")
+        .prefetch_related("user_roles__role")
         .order_by("-created_at")
     )
     serializer_class = UserSerializer
@@ -48,7 +49,11 @@ class BusinessAdminListView(generics.ListAPIView):
 
     queryset = (
         User.objects.filter(user_roles__role__name="business_admin")
-        .prefetch_related("user_roles__role", "business")
+        .select_related("business")
+        .prefetch_related(
+            "user_roles__role",
+            "business__subscriptions__plan_price__plan",
+        )
         .order_by("-created_at")
     )
     serializer_class = BusinessAdminListSerializer
@@ -140,6 +145,10 @@ class AdminAllInvoicesView(generics.ListAPIView):
     serializer_class = InvoiceSerializer
     permission_classes = [IsSystemAdmin]
 
+    @swagger_auto_schema(**schemas.admin_invoices_schema)
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
     def get_queryset(self):
         return Invoice.objects.select_related(
             "business", "subscription__plan_price__plan"
@@ -149,11 +158,15 @@ class AdminAllInvoicesView(generics.ListAPIView):
 class AdminAllSubscriptionsView(generics.ListAPIView):
     """
     GET /api/system-admin/subscriptions/
-    System admin sees all active subscriptions across all businesses.
+    System admin sees all subscriptions across all businesses.
     """
 
     serializer_class = SubscriptionSerializer
     permission_classes = [IsSystemAdmin]
+
+    @swagger_auto_schema(**schemas.admin_subscriptions_schema)
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
 
     def get_queryset(self):
         return Subscription.objects.select_related(

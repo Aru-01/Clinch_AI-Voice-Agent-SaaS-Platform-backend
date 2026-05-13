@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Plan, PlanPrice, PlanFeature, Subscription, Invoice
+from apps.billing.models import Plan, PlanPrice, PlanFeature, Subscription, Invoice
 
 
 class PlanFeatureSerializer(serializers.ModelSerializer):
@@ -56,6 +56,7 @@ class PlanListSerializer(serializers.ModelSerializer):
 
 class PlanWriteSerializer(serializers.ModelSerializer):
     """System admin: create or update a plan with nested prices and features."""
+
     prices = PlanPriceWriteSerializer(many=True, required=False)
     features = PlanFeatureSerializer(many=True, required=False)
 
@@ -66,22 +67,23 @@ class PlanWriteSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         prices_data = validated_data.pop("prices", [])
         features_data = validated_data.pop("features", [])
-        
+
         plan = Plan.objects.create(**validated_data)
-        
+
         # Create prices
-        from .services.stripe_service import StripeService
+        from apps.billing.services.stripe_service import StripeService
+
         for price_data in prices_data:
             pp = PlanPrice.objects.create(plan=plan, **price_data)
             try:
                 StripeService.sync_plan_price_to_stripe(pp)
             except Exception:
                 pass
-                
+
         # Create features
         for feature_data in features_data:
             PlanFeature.objects.create(plan=plan, **feature_data)
-            
+
         return plan
 
     def update(self, instance, validated_data):
@@ -93,8 +95,7 @@ class PlanWriteSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-
-        from .services.stripe_service import StripeService
+        from apps.billing.services.stripe_service import StripeService
 
         # If plan name changed, sync to Stripe
         if old_name != instance.name:
@@ -108,8 +109,7 @@ class PlanWriteSerializer(serializers.ModelSerializer):
             for p_data in prices_data:
                 cycle = p_data.get("billing_cycle")
                 pp, created = PlanPrice.objects.update_or_create(
-                    plan=instance, billing_cycle=cycle,
-                    defaults=p_data
+                    plan=instance, billing_cycle=cycle, defaults=p_data
                 )
                 try:
                     StripeService.sync_plan_price_to_stripe(pp)
@@ -121,8 +121,7 @@ class PlanWriteSerializer(serializers.ModelSerializer):
             for f_data in features_data:
                 key = f_data.get("feature_key")
                 PlanFeature.objects.update_or_create(
-                    plan=instance, feature_key=key,
-                    defaults=f_data
+                    plan=instance, feature_key=key, defaults=f_data
                 )
 
         return instance
@@ -136,6 +135,12 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(
         source="plan_price.price", max_digits=10, decimal_places=2, read_only=True
     )
+    plan_start_date = serializers.DateTimeField(
+        source="current_period_start", read_only=True
+    )
+    plan_end_date = serializers.DateTimeField(
+        source="current_period_end", read_only=True
+    )
 
     class Meta:
         model = Subscription
@@ -145,6 +150,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "billing_cycle",
             "price",
             "status",
+            "plan_start_date",
+            "plan_end_date",
             "current_period_start",
             "current_period_end",
             "cancelled_at",
@@ -198,6 +205,16 @@ class SwitchPlanSerializer(serializers.Serializer):
 
 
 class InvoiceSerializer(serializers.ModelSerializer):
+    subscription_status = serializers.CharField(
+        source="subscription.status", read_only=True, default=None
+    )
+    plan_start_date = serializers.DateTimeField(
+        source="subscription.current_period_start", read_only=True, default=None
+    )
+    plan_end_date = serializers.DateTimeField(
+        source="subscription.current_period_end", read_only=True, default=None
+    )
+
     class Meta:
         model = Invoice
         fields = [
@@ -206,6 +223,9 @@ class InvoiceSerializer(serializers.ModelSerializer):
             "amount",
             "currency",
             "status",
+            "subscription_status",
+            "plan_start_date",
+            "plan_end_date",
             "paid_at",
             "snapshot_business_name",
             "snapshot_plan_name",

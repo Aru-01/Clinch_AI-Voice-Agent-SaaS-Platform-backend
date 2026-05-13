@@ -44,7 +44,7 @@
             <div class="info-section">
                 <h3>Billed To</h3>
                 <p>{{ invoice.snapshot_business_name }}</p>
-                <p>{{ invoice.business.owner.email }}</p>
+                <p>{{ owner_email|default:"—" }}</p>
             </div>
             <div class="info-section">
                 <h3>Payment Method</h3>

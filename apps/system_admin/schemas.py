@@ -119,6 +119,72 @@ system_admin_delete_schema = {
     },
 }
 
+BILLING_ADMIN_TAG = "System Administration - Billing"
+
+# Admin All Invoices Schema
+admin_invoices_schema = {
+    "operation_summary": "List All Invoices (Admin)",
+    "operation_description": "Returns all invoices across every business. Includes subscription status and plan dates. System Admin only.",
+    "tags": [BILLING_ADMIN_TAG],
+    "responses": {
+        200: openapi.Response(
+            description="All invoices",
+            examples={
+                "application/json": [
+                    {
+                        "id": 1,
+                        "stripe_invoice_id": "in_1O0afE...",
+                        "amount": "99.99",
+                        "currency": "usd",
+                        "status": "paid",
+                        "subscription_status": "active",
+                        "plan_start_date": "2026-05-12T10:00:00Z",
+                        "plan_end_date": "2026-06-12T10:00:00Z",
+                        "paid_at": "2026-05-12T10:00:00Z",
+                        "snapshot_business_name": "Acme Corp",
+                        "snapshot_plan_name": "Pro",
+                        "snapshot_billing_cycle": "monthly",
+                        "snapshot_price": "99.99",
+                        "created_at": "2026-05-12T10:00:00Z",
+                    }
+                ]
+            },
+        ),
+        403: error_response,
+    },
+}
+
+# Admin All Subscriptions Schema
+admin_subscriptions_schema = {
+    "operation_summary": "List All Subscriptions (Admin)",
+    "operation_description": "Returns all subscriptions across every business with plan dates. System Admin only.",
+    "tags": [BILLING_ADMIN_TAG],
+    "responses": {
+        200: openapi.Response(
+            description="All subscriptions",
+            examples={
+                "application/json": [
+                    {
+                        "id": 1,
+                        "plan_name": "Pro",
+                        "billing_cycle": "monthly",
+                        "price": "99.99",
+                        "status": "active",
+                        "plan_start_date": "2026-05-12T10:00:00Z",
+                        "plan_end_date": "2026-06-12T10:00:00Z",
+                        "current_period_start": "2026-05-12T10:00:00Z",
+                        "current_period_end": "2026-06-12T10:00:00Z",
+                        "cancelled_at": None,
+                        "cancel_reason": "",
+                        "created_at": "2026-05-12T10:00:00Z",
+                    }
+                ]
+            },
+        ),
+        403: error_response,
+    },
+}
+
 # Stats Schema
 stats_schema = {
     "operation_summary": "Get System Dashboard Stats",
