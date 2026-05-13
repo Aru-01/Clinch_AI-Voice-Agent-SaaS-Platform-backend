@@ -8,6 +8,7 @@ from apps.support.serializers import (
     TicketMessageSerializer,
 )
 from apps.support import schemas
+from apps.support.permissions import IsVerifiedBusinessUser
 
 
 class SupportTicketViewSet(viewsets.ModelViewSet):
@@ -17,7 +18,7 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
     - System admins can view all tickets, patch status, and update notes.
     """
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsVerifiedBusinessUser]
     serializer_class = SupportTicketSerializer
     filter_backends = [
         filters.SearchFilter,
