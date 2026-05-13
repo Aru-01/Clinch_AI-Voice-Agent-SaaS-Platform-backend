@@ -20,6 +20,7 @@ apps/configuration/__pycache__
 apps/support/__pycache__
 apps/billing/__pycache__
 apps/billing/services/__pycache__
+apps/crm_integration/__pycache__
 
 
 BILLING_API_QUICK_REFERENCE.md
