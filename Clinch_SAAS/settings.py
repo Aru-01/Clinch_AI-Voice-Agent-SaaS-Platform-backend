@@ -41,6 +41,7 @@ CUSTOM_APPS = [
     "apps.billing",
     "apps.crm_integration",
     "apps.call_logs",
+    "apps.bookings",
 ]
 
 INSTALLED_APPS += CUSTOM_APPS
