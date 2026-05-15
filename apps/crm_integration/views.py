@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .services import HubSpotService, ZohoService
+from .services import HubSpotService, ZohoService, SalesforceService, GoHighLevelService
 
 
 class TestCRMLeadsView(APIView):
@@ -10,16 +10,25 @@ class TestCRMLeadsView(APIView):
             # Initialize services (No credentials passed for testing mock)
             hubspot_service = HubSpotService()
             zoho_service = ZohoService()
+            salesforce_service = SalesforceService()
+            ghl_service = GoHighLevelService()
 
             # Fetch leads
             hubspot_leads = hubspot_service.fetch_leads()
             zoho_leads = zoho_service.fetch_leads()
+            salesforce_leads = salesforce_service.fetch_leads()
+            ghl_leads = ghl_service.fetch_leads()
 
             return Response(
                 {
                     "success": True,
                     "message": "Successfully fetched leads from CRMs",
-                    "data": {"hubspot_leads": hubspot_leads, "zoho_leads": zoho_leads},
+                    "data": {
+                        "hubspot_leads": hubspot_leads, 
+                        "zoho_leads": zoho_leads,
+                        "salesforce_leads": salesforce_leads,
+                        "ghl_leads": ghl_leads
+                    },
                 },
                 status=status.HTTP_200_OK,
             )
@@ -56,6 +65,19 @@ class CRMWebhookView(APIView):
             if not data and request.POST:
                 data = request.POST
                 print(f"Zoho: Found data in POST instead of JSON Body: {data}")
+
+        # Logic for Salesforce
+        elif crm_type == "salesforce":
+            first_name = data.get("first_name", "")
+            last_name = data.get("last_name", "")
+            email = data.get("email", "")
+            print(f"Salesforce Webhook: New Lead -> {first_name} {last_name} ({email})")
+
+        # Logic for GoHighLevel (GHL)
+        elif crm_type == "ghl":
+            contact_name = data.get("firstName", "") + " " + data.get("lastName", "")
+            email = data.get("email", "")
+            print(f"GHL Webhook: New Contact -> {contact_name} ({email})")
 
         return Response(
             {"status": "success", "message": f"Webhook received for {crm_type}"},
