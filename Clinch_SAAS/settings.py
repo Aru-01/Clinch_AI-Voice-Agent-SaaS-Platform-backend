@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
+    "django_filters",
     "drf_yasg",
     "debug_toolbar",
 ]
@@ -39,6 +40,7 @@ CUSTOM_APPS = [
     "apps.support",
     "apps.billing",
     "apps.crm_integration",
+    "apps.call_logs",
 ]
 
 INSTALLED_APPS += CUSTOM_APPS

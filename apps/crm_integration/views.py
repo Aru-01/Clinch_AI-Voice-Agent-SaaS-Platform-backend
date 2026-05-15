@@ -1,13 +1,14 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from drf_yasg.utils import swagger_auto_schema
 from .services import HubSpotService, ZohoService, SalesforceService, GoHighLevelService
-
+from . import schemas
 
 class TestCRMLeadsView(APIView):
+    @swagger_auto_schema(**schemas.crm_test_leads_schema)
     def get(self, request):
         try:
-            # Initialize services (No credentials passed for testing mock)
             hubspot_service = HubSpotService()
             zoho_service = ZohoService()
             salesforce_service = SalesforceService()
@@ -24,10 +25,10 @@ class TestCRMLeadsView(APIView):
                     "success": True,
                     "message": "Successfully fetched leads from CRMs",
                     "data": {
-                        "hubspot_leads": hubspot_leads, 
+                        "hubspot_leads": hubspot_leads,
                         "zoho_leads": zoho_leads,
                         "salesforce_leads": salesforce_leads,
-                        "ghl_leads": ghl_leads
+                        "ghl_leads": ghl_leads,
                     },
                 },
                 status=status.HTTP_200_OK,
@@ -39,9 +40,8 @@ class TestCRMLeadsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-
 class CRMWebhookView(APIView):
-    # In production, you should verify signatures from HubSpot/Zoho
+    @swagger_auto_schema(**schemas.crm_webhook_schema)
     def post(self, request, crm_type):
         # Debugging info to see where data is coming from
         print(f"--- Webhook Received from {crm_type} ---")
