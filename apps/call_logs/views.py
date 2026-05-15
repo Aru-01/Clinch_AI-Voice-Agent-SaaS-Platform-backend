@@ -1,15 +1,16 @@
-from rest_framework import generics, permissions, filters
+from rest_framework import generics, filters, permissions
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_yasg.utils import swagger_auto_schema
 from apps.call_logs.models import CallLog
 from apps.call_logs.serializers import CallLogListSerializer, CallLogDetailSerializer
-from apps.call_logs.pagination import CallLogPagination
 from apps.call_logs import schemas
 
+# Core imports for reusability
+from core.permissions import IsBusinessAdmin
+from core.pagination import DynamicPageNumberPagination
 
 class CallLogListCreateView(generics.ListCreateAPIView):
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = CallLogPagination
+    pagination_class = DynamicPageNumberPagination
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -20,7 +21,7 @@ class CallLogListCreateView(generics.ListCreateAPIView):
     filterset_fields = {
         "location": ["exact", "icontains"],
         "status": ["exact", "icontains"],
-        "call_date_time": ["exact", "date", "gte", "lte"],  # Support date filtering
+        "call_date_time": ["exact", "date", "gte", "lte"],
     }
 
     # Searching fields
@@ -30,6 +31,15 @@ class CallLogListCreateView(generics.ListCreateAPIView):
     ordering_fields = ["call_date_time", "duration"]
     ordering = ["-call_date_time"]
 
+    def get_permissions(self):
+        """
+        GET: Only Business Admins can see the list.
+        POST: Allowed for anyone (AI/Service) to create logs.
+        """
+        if self.request.method == "POST":
+            return [permissions.AllowAny()]
+        return [IsBusinessAdmin()]
+
     def get_serializer_class(self):
         if self.request.method == "POST":
             return CallLogDetailSerializer
@@ -37,14 +47,20 @@ class CallLogListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.business:
+        if user.is_authenticated and user.business:
             return CallLog.objects.select_related("business").filter(
                 business=user.business
             )
         return CallLog.objects.none()
 
     def perform_create(self, serializer):
-        serializer.save(business=self.request.user.business)
+        # For AI/External service, business ID should be in the request body
+        # If user is authenticated (e.g. from dashboard), use their business
+        if self.request.user.is_authenticated and self.request.user.business:
+            serializer.save(business=self.request.user.business)
+        else:
+            # Otherwise, just save what's in the serializer (business ID must be passed)
+            serializer.save()
 
     @swagger_auto_schema(**schemas.call_log_list_schema)
     def get(self, request, *args, **kwargs):
@@ -54,18 +70,15 @@ class CallLogListCreateView(generics.ListCreateAPIView):
     def post(self, request, *args, **kwargs):
         return super().post(request, *args, **kwargs)
 
-
 class CallLogDetailView(generics.RetrieveDestroyAPIView):
     serializer_class = CallLogDetailSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsBusinessAdmin]
 
     def get_queryset(self):
         user = self.request.user
-        if user.business:
-            return CallLog.objects.select_related("business").filter(
-                business=user.business
-            )
-        return CallLog.objects.none()
+        return CallLog.objects.select_related("business").filter(
+            business=user.business
+        )
 
     @swagger_auto_schema(**schemas.call_log_detail_schema)
     def get(self, request, *args, **kwargs):

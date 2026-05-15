@@ -9,9 +9,12 @@ from apps.crm_integration.services import (
     GoHighLevelService,
 )
 from apps.crm_integration import schemas
+from core.permissions import IsBusinessAdmin
 
 
 class TestCRMLeadsView(APIView):
+    permission_classes = [IsBusinessAdmin]
+
     @swagger_auto_schema(**schemas.crm_test_leads_schema)
     def get(self, request):
         try:

@@ -2,9 +2,9 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 
-class CallLogPagination(PageNumberPagination):
+class DynamicPageNumberPagination(PageNumberPagination):
     page_size = 20
-    page_size_query_param = "page_size"
+    page_size_query_param = "page_size"  # Frontend can override this
     max_page_size = 200
 
     def get_paginated_response(self, data):
