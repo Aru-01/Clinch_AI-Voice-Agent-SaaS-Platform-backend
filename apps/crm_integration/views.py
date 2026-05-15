@@ -2,8 +2,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from drf_yasg.utils import swagger_auto_schema
-from .services import HubSpotService, ZohoService, SalesforceService, GoHighLevelService
-from . import schemas
+from apps.crm_integration.services import (
+    HubSpotService,
+    ZohoService,
+    SalesforceService,
+    GoHighLevelService,
+)
+from apps.crm_integration import schemas
+
 
 class TestCRMLeadsView(APIView):
     @swagger_auto_schema(**schemas.crm_test_leads_schema)
@@ -39,6 +45,7 @@ class TestCRMLeadsView(APIView):
                 {"success": False, "message": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
 
 class CRMWebhookView(APIView):
     @swagger_auto_schema(**schemas.crm_webhook_schema)

@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from apps.crm_integration import views
 
 urlpatterns = [
     path("leads/", views.TestCRMLeadsView.as_view(), name="test-crm-leads"),
