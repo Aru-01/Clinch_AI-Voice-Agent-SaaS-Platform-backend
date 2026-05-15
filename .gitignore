@@ -23,6 +23,11 @@ apps/billing/services/__pycache__
 apps/crm_integration/__pycache__
 apps/call_logs/__pycache__
 apps/bookings/__pycache__
+apps/notifications/__pycache__
+apps/notifications/management/__pycache__
+apps/notifications/management/commands/__pycache__
+apps/notifications/services/__pycache__
+
 
 
 BILLING_API_QUICK_REFERENCE.md

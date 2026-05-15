@@ -9,4 +9,5 @@ urlpatterns = [
     path("api/crm/", include("apps.crm_integration.urls")),
     path("api/call-logs/", include("apps.call_logs.urls")),
     path("api/bookings/", include("apps.bookings.urls")),
+    path("api/notifications/", include("apps.notifications.urls")),
 ]
