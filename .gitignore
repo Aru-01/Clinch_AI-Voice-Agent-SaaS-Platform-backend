@@ -35,3 +35,8 @@ BILLING_FIXES_SUMMARY.md
 PROJECT_REVIEW.md
 
 
+media/
+staticfiles/
+*.text
+*.txt
+*.md
