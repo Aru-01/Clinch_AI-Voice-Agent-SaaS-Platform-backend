@@ -1,5 +1,9 @@
 from drf_yasg import openapi
-from apps.support.serializers import SupportTicketSerializer, TicketMessageSerializer
+from apps.support.serializers import (
+    SupportTicketSerializer,
+    SupportTicketListSerializer,
+    TicketMessageSerializer,
+)
 
 SUPPORT_TAG = "Support Tickets"
 
@@ -12,7 +16,7 @@ ticket_list_schema = {
     "operation_summary": "List Support Tickets",
     "operation_description": "Retrieves a list of support tickets. Business admins see their own, System admins see all.",
     "tags": [SUPPORT_TAG],
-    "responses": {200: SupportTicketSerializer(many=True)},
+    "responses": {200: SupportTicketListSerializer(many=True)},
 }
 
 ticket_create_schema = {

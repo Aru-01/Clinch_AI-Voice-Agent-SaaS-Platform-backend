@@ -201,6 +201,4 @@ CSRF_TRUSTED_ORIGINS = [
     "https://test4.fireai.agency",
 ]
 
-ALLOWED_HOSTS = [
-    "test4.fireai.agency",
-]
+ALLOWED_HOSTS = ["test4.fireai.agency", "127.0.0.1"]

@@ -5,6 +5,8 @@ from drf_yasg.utils import swagger_auto_schema
 from apps.support.models import SupportTicket, TicketMessage
 from apps.support.serializers import (
     SupportTicketSerializer,
+    SupportTicketListSerializer,
+    BusinessSupportTicketListSerializer,
     TicketMessageSerializer,
 )
 from apps.support import schemas
@@ -28,6 +30,23 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at", "updated_at"]
     ordering = ["-created_at"]
 
+    def get_serializer_class(self):
+        user = self.request.user
+        if not user or user.is_anonymous:
+            return SupportTicketSerializer
+
+        if not hasattr(user, "_is_system_admin"):
+            user._is_system_admin = (
+                user.is_superuser
+                or user.user_roles.filter(role__name="system_admin").exists()
+            )
+
+        if self.action == "list":
+            if user._is_system_admin:
+                return SupportTicketListSerializer
+            return BusinessSupportTicketListSerializer
+        return SupportTicketSerializer
+
     @swagger_auto_schema(**schemas.ticket_list_schema)
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
@@ -45,16 +64,21 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return SupportTicket.objects.none()
 
-        if user.business_id is None:
-            # System admin
+        if not hasattr(user, "_is_system_admin"):
+            user._is_system_admin = (
+                user.is_superuser
+                or user.user_roles.filter(role__name="system_admin").exists()
+            )
+
+        if user._is_system_admin:
             queryset = SupportTicket.objects.all().select_related("business", "creator")
         else:
-            # Business admin
             queryset = SupportTicket.objects.filter(
                 business_id=user.business_id
             ).select_related("business", "creator")
 
-        queryset = queryset.prefetch_related("messages__sender")
+        if self.action != "list":
+            queryset = queryset.prefetch_related("messages__sender")
 
         status_param = self.request.query_params.get("status")
         if status_param:
@@ -64,7 +88,13 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        if user.business_id is None:
+        if not hasattr(user, "_is_system_admin"):
+            user._is_system_admin = (
+                user.is_superuser
+                or user.user_roles.filter(role__name="system_admin").exists()
+            )
+
+        if user._is_system_admin:
             raise serializers.ValidationError(
                 {"detail": "System admins cannot create tickets."}
             )
@@ -88,9 +118,15 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
 
     def _do_update(self, request, *args, **kwargs):
         user = request.user
-        if user.business_id is not None:
+        if not hasattr(user, "_is_system_admin"):
+            user._is_system_admin = (
+                user.is_superuser
+                or user.user_roles.filter(role__name="system_admin").exists()
+            )
+
+        if not user._is_system_admin:
             return Response(
-                {"detail": "Business admins cannot update tickets."},
+                {"detail": "Only system admins can update tickets."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 

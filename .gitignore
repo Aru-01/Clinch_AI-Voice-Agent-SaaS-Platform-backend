@@ -40,3 +40,5 @@ staticfiles/
 *.text
 *.txt
 *.md
+
+extra_files

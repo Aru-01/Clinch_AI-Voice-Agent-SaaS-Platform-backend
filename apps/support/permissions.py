@@ -14,6 +14,15 @@ class IsVerifiedBusinessUser(permissions.BasePermission):
             self.message = "Authentication required."
             return False
 
+        if not hasattr(request.user, "_is_system_admin"):
+            request.user._is_system_admin = (
+                request.user.is_superuser
+                or request.user.user_roles.filter(role__name="system_admin").exists()
+            )
+
+        if request.user._is_system_admin:
+            return True
+
         if not request.user.is_verified:
             self.message = "Your email is not verified. Please verify your email to access support tickets."
             return False

@@ -10,10 +10,47 @@ class UserLiteSerializer(serializers.ModelSerializer):
 
 
 class TicketMessageSerializer(serializers.ModelSerializer):
+    sender = UserLiteSerializer(read_only=True)
+
     class Meta:
         model = TicketMessage
-        fields = ["id", "message"]
-        read_only_fields = ["id"]
+        fields = ["id", "sender", "message", "created_at"]
+        read_only_fields = ["id", "sender", "created_at"]
+
+
+class BusinessSupportTicketListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupportTicket
+        fields = [
+            "id",
+            "ticket_number",
+            "subject",
+            "status",
+            "notes",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+
+class SupportTicketListSerializer(serializers.ModelSerializer):
+    creator = UserLiteSerializer(read_only=True)
+    business_name = serializers.CharField(source="business.name", read_only=True)
+
+    class Meta:
+        model = SupportTicket
+        fields = [
+            "id",
+            "ticket_number",
+            "business",
+            "business_name",
+            "creator",
+            "subject",
+            "status",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
 
 
 class SupportTicketSerializer(serializers.ModelSerializer):
