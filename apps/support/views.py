@@ -1,13 +1,11 @@
 from rest_framework import viewsets, permissions, status, filters, serializers
-from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
-from apps.support.models import SupportTicket, TicketMessage
+from apps.support.models import SupportTicket
 from apps.support.serializers import (
     SupportTicketSerializer,
     SupportTicketListSerializer,
     BusinessSupportTicketListSerializer,
-    TicketMessageSerializer,
 )
 from apps.support import schemas
 from apps.support.permissions import IsVerifiedBusinessUser
@@ -77,9 +75,6 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
                 business_id=user.business_id
             ).select_related("business", "creator")
 
-        if self.action != "list":
-            queryset = queryset.prefetch_related("messages__sender")
-
         status_param = self.request.query_params.get("status")
         if status_param:
             queryset = queryset.filter(status=status_param)
@@ -99,13 +94,7 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
                 {"detail": "System admins cannot create tickets."}
             )
 
-        message_text = serializer.validated_data.pop("message", None)
-        ticket = serializer.save(creator=user, business_id=user.business_id)
-
-        if message_text:
-            TicketMessage.objects.create(
-                ticket=ticket, sender=user, message=message_text
-            )
+        serializer.save(creator=user, business_id=user.business_id)
 
     @swagger_auto_schema(**schemas.ticket_update_schema)
     def update(self, request, *args, **kwargs):
@@ -161,23 +150,4 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         return Response(
             {"detail": "Tickets cannot be deleted."},
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
-        )
-
-    @swagger_auto_schema(**schemas.add_message_schema)
-    @action(detail=True, methods=["post"], url_path="messages")
-    def add_message(self, request, pk=None):
-        """Add a message to a ticket (visible to both System and Business admins)."""
-        ticket = self.get_object()
-        message_text = request.data.get("message")
-        if not message_text:
-            return Response(
-                {"detail": "Message text is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        message = TicketMessage.objects.create(
-            ticket=ticket, sender=request.user, message=message_text
-        )
-        return Response(
-            TicketMessageSerializer(message).data, status=status.HTTP_201_CREATED
         )

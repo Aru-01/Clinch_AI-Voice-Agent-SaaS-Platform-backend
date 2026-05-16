@@ -2,7 +2,6 @@ from drf_yasg import openapi
 from apps.support.serializers import (
     SupportTicketSerializer,
     SupportTicketListSerializer,
-    TicketMessageSerializer,
 )
 
 SUPPORT_TAG = "Support Tickets"
@@ -21,7 +20,7 @@ ticket_list_schema = {
 
 ticket_create_schema = {
     "operation_summary": "Create Support Ticket",
-    "operation_description": "Creates a new support ticket with an initial message. Business admins only.",
+    "operation_description": "Creates a new support ticket. Business admins only.",
     "tags": [SUPPORT_TAG],
     "request_body": openapi.Schema(
         type=openapi.TYPE_OBJECT,
@@ -40,7 +39,7 @@ ticket_create_schema = {
 
 ticket_retrieve_schema = {
     "operation_summary": "Retrieve Support Ticket",
-    "operation_description": "Gets full details of a support ticket including messages and notes.",
+    "operation_description": "Gets full details of a support ticket including the message and notes.",
     "tags": [SUPPORT_TAG],
     "responses": {200: SupportTicketSerializer(), 404: error_response},
 }
@@ -59,7 +58,7 @@ ticket_update_schema = {
             ),
             "notes": openapi.Schema(
                 type=openapi.TYPE_STRING,
-                description="Update the internal note for the ticket.",
+                description="Update the internal note/reply for the ticket.",
                 example="Issues resolved after investigation.",
             ),
         },
@@ -69,22 +68,6 @@ ticket_update_schema = {
         400: error_response,
         403: error_response,
     },
-}
-
-add_message_schema = {
-    "operation_summary": "Add Message to Ticket",
-    "operation_description": "Adds a new message to an existing support ticket conversation.",
-    "tags": [SUPPORT_TAG],
-    "request_body": openapi.Schema(
-        type=openapi.TYPE_OBJECT,
-        required=["message"],
-        properties={
-            "message": openapi.Schema(
-                type=openapi.TYPE_STRING, example="Here is more info..."
-            ),
-        },
-    ),
-    "responses": {201: TicketMessageSerializer(), 400: error_response},
 }
 
 ticket_delete_schema = {

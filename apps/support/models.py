@@ -22,6 +22,7 @@ class SupportTicket(models.Model):
         max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING
     )
     ticket_number = models.PositiveIntegerField(unique=True, editable=False, null=True)
+    message = models.TextField()
     notes = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -41,21 +42,3 @@ class SupportTicket(models.Model):
 
     def __str__(self):
         return f"{self.subject} ({self.status})"
-
-class TicketMessage(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    ticket = models.ForeignKey(
-        SupportTicket, on_delete=models.CASCADE, related_name="messages"
-    )
-    sender = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="ticket_messages"
-    )
-    message = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["created_at"]
-        db_table = "ticket_messages"
-
-    def __str__(self):
-        return f"Message on {self.ticket.subject} by {self.sender}"

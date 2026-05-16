@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.support.models import SupportTicket, TicketMessage
+from apps.support.models import SupportTicket
 from apps.accounts.models import CustomUser
 
 
@@ -9,15 +9,6 @@ class UserLiteSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "phone", "profile_image"]
 
 
-class TicketMessageSerializer(serializers.ModelSerializer):
-    sender = UserLiteSerializer(read_only=True)
-
-    class Meta:
-        model = TicketMessage
-        fields = ["id", "sender", "message", "created_at"]
-        read_only_fields = ["id", "sender", "created_at"]
-
-
 class BusinessSupportTicketListSerializer(serializers.ModelSerializer):
     class Meta:
         model = SupportTicket
@@ -25,6 +16,7 @@ class BusinessSupportTicketListSerializer(serializers.ModelSerializer):
             "id",
             "ticket_number",
             "subject",
+            "message",
             "status",
             "notes",
             "created_at",
@@ -45,6 +37,7 @@ class SupportTicketListSerializer(serializers.ModelSerializer):
             "business_name",
             "creator",
             "subject",
+            "message",
             "status",
             "notes",
             "created_at",
@@ -56,10 +49,6 @@ class SupportTicketListSerializer(serializers.ModelSerializer):
 class SupportTicketSerializer(serializers.ModelSerializer):
     creator = UserLiteSerializer(read_only=True)
     business_name = serializers.CharField(source="business.name", read_only=True)
-    messages = TicketMessageSerializer(many=True, read_only=True)
-    message = serializers.CharField(
-        write_only=True, required=False, help_text="Initial message for the ticket"
-    )
 
     class Meta:
         model = SupportTicket
@@ -70,10 +59,9 @@ class SupportTicketSerializer(serializers.ModelSerializer):
             "business_name",
             "creator",
             "subject",
+            "message",
             "status",
             "notes",
-            "message",
-            "messages",
             "created_at",
             "updated_at",
         ]
