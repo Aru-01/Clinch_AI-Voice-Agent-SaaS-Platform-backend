@@ -16,10 +16,8 @@ class PlanPriceSerializer(serializers.ModelSerializer):
             "billing_cycle",
             "price",
             "currency",
-            "stripe_price_id",
             "is_active",
         ]
-        read_only_fields = ["stripe_price_id"]
 
 
 class PlanPriceWriteSerializer(serializers.ModelSerializer):
