@@ -75,6 +75,8 @@ class CallLogDetailView(generics.RetrieveDestroyAPIView):
     permission_classes = [IsBusinessAdmin]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return CallLog.objects.none()
         user = self.request.user
         return CallLog.objects.select_related("business").filter(
             business=user.business

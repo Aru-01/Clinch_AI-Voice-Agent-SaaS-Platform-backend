@@ -16,8 +16,17 @@ DEBUG = config("DEBUG", default=False, cast=bool)
 #     cast=lambda v: [s.strip() for s in v.split(",") if s.strip()],
 # )
 
-ALLOWED_HOSTS = ["*"]
-CSRF_TRUSTED_ORIGINS = ["https://charissa-intuitable-corroboratorily.ngrok-free.dev"]
+# ALLOWED_HOSTS = ["*"]
+CSRF_TRUSTED_ORIGINS = [
+    "https://test21.fireai.agency",
+    "https://charissa-intuitable-corroboratorily.ngrok-free.dev",
+]
+
+ALLOWED_HOSTS = [
+    "test21.fireai.agency" "127.0.0.1",
+    "charissa-intuitable-corroboratorily.ngrok-free.dev",
+]
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -201,4 +210,8 @@ CSRF_TRUSTED_ORIGINS = [
     "https://test4.fireai.agency",
 ]
 
-ALLOWED_HOSTS = ["test4.fireai.agency", "127.0.0.1"]
+ALLOWED_HOSTS = [
+    "test4.fireai.agency",
+    "127.0.0.1",
+    "charissa-intuitable-corroboratorily.ngrok-free.dev",
+]
