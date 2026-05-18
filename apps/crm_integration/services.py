@@ -235,7 +235,7 @@ class SalesforceService(BaseOAuthService):
         }
         return f"{self.OAUTH_URL}?{urlencode(params)}"
 
-    def exchange_code_for_token(self, code: str) -> dict:
+    def exchange_code_for_token(self, code: str, _code_verifier: str = None) -> dict:
         """Exchange authorization code for tokens"""
         data = {
             "grant_type": "authorization_code",
@@ -343,7 +343,7 @@ class ZohoService(BaseOAuthService):
         }
         return f"{self.OAUTH_URL}?{urlencode(params)}"
 
-    def exchange_code_for_token(self, code: str) -> dict:
+    def exchange_code_for_token(self, code: str, _code_verifier: str = None) -> dict:
         """Exchange authorization code for tokens"""
         data = {
             "grant_type": "authorization_code",
@@ -442,7 +442,7 @@ class PipedriveService(BaseOAuthService):
         }
         return f"{self.OAUTH_URL}?{urlencode(params)}"
 
-    def exchange_code_for_token(self, code: str) -> dict:
+    def exchange_code_for_token(self, code: str, _code_verifier: str = None) -> dict:
         """Exchange authorization code for tokens"""
         data = {
             "grant_type": "authorization_code",
@@ -517,7 +517,7 @@ class GHLService(BaseOAuthService):
     def get_oauth_url(self, state: str) -> str:
         raise NotImplementedError("GHL OAuth will be implemented later")
 
-    def exchange_code_for_token(self, code: str) -> dict:
+    def exchange_code_for_token(self, code: str, _code_verifier: str = None) -> dict:
         raise NotImplementedError("GHL OAuth will be implemented later")
 
     def refresh_access_token(self) -> bool:

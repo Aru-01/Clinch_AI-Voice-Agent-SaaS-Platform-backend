@@ -89,7 +89,7 @@ class CRMOAuthCallbackView(APIView):
 
             service = get_oauth_service(crm_type)
             code_verifier = request.session.get(f'pkce_verifier_{crm_type}')
-            token_result = service.exchange_code_for_token(code, code_verifier=code_verifier)
+            token_result = service.exchange_code_for_token(code, code_verifier)
 
             if not token_result.get('success'):
                 return Response(
