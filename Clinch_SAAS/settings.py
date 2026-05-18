@@ -23,7 +23,8 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 ALLOWED_HOSTS = [
-    "test21.fireai.agency" "127.0.0.1",
+    "test21.fireai.agency",
+    "127.0.0.1",
     "charissa-intuitable-corroboratorily.ngrok-free.dev",
 ]
 
