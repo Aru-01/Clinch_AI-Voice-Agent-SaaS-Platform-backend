@@ -1,4 +1,5 @@
 from rest_framework.permissions import BasePermission
+from django.utils import timezone
 
 
 class IsBusinessAdmin(BasePermission):
@@ -31,6 +32,24 @@ class IsSystemAdmin(BasePermission):
             and request.user.is_verified
             and request.user.business_id is None
         )
+
+
+class HasActiveSubscription(BasePermission):
+    """
+    Allows access only when the user's business has an active, non-expired subscription.
+    Used to gate CRM connections and other premium features.
+    """
+    message = "An active subscription is required to use this feature."
+
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_authenticated and request.user.business_id):
+            return False
+        from apps.billing.models import Subscription, SubscriptionStatus
+        return Subscription.objects.filter(
+            business_id=request.user.business_id,
+            status=SubscriptionStatus.ACTIVE,
+            current_period_end__gt=timezone.now(),
+        ).exists()
 
 
 class IsSameBusiness(BasePermission):
