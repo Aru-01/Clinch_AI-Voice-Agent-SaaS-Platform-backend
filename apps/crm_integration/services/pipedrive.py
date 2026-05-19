@@ -6,6 +6,10 @@ from django.utils import timezone
 from .base import BaseOAuthService
 
 
+class _PipedriveScopeError(Exception):
+    pass
+
+
 class PipedriveService(BaseOAuthService):
     CLIENT_ID = config("PIPEDRIVE_CLIENT_ID", default=None)
     CLIENT_SECRET = config("PIPEDRIVE_CLIENT_SECRET", default=None)
@@ -17,13 +21,16 @@ class PipedriveService(BaseOAuthService):
     def __init__(self, crm_connection=None, redirect_uri=None):
         super().__init__(crm_connection)
         self.redirect_uri = redirect_uri or f"{config('CALLBACK_BASE_URL')}/api/crm/callback/pipedrive/"
+        # Use the account-specific API domain saved during OAuth (Pipedrive sandbox/company domains differ)
+        api_domain = crm_connection.raw_config.get("api_domain") if crm_connection else None
+        self.api_base = f"{api_domain}/v1" if api_domain else "https://api.pipedrive.com/v1"
 
     def get_oauth_url(self, state):
         params = {
             "client_id": self.CLIENT_ID,
             "redirect_uri": self.redirect_uri,
             "state": state,
-            "scope": "leads:read deals:read persons:read contacts:read",
+            "scope": "leads:read deals:read contacts:read",
         }
         return f"{self.OAUTH_URL}?{urlencode(params)}"
 
@@ -37,7 +44,14 @@ class PipedriveService(BaseOAuthService):
         })
         if resp.status_code == 200:
             d = resp.json()
-            return {"success": True, "access_token": d.get("access_token"), "refresh_token": d.get("refresh_token"), "expires_in": d.get("expires_in", 3600)}
+            print(f"[Pipedrive] token: api_domain={d.get('api_domain')} | scope={d.get('scope')}")
+            return {
+                "success": True,
+                "access_token": d.get("access_token"),
+                "refresh_token": d.get("refresh_token"),
+                "expires_in": d.get("expires_in", 3600),
+                "api_domain": d.get("api_domain"),
+            }
         return {"success": False, "error": resp.text}
 
     def refresh_access_token(self) -> bool:
@@ -67,7 +81,7 @@ class PipedriveService(BaseOAuthService):
             return {"success": False, "error": "No access token"}
         headers = {"Authorization": f"Bearer {self.access_token}", "Content-Type": "application/json"}
         resp = requests.post(
-            f"{self.API_BASE_URL}/webhooks",
+            f"{self.api_base}/webhooks",
             json={"subscription_url": webhook_url, "event_action": "*", "event_object": "*"},
             headers=headers,
         )
@@ -82,57 +96,59 @@ class PipedriveService(BaseOAuthService):
         headers = {"Authorization": f"Bearer {self.access_token}"}
 
         # Try leads endpoint first, fallback to persons
-        resp = requests.get(f"{self.API_BASE_URL}/leads", headers=headers, params={"limit": 100})
+        resp = requests.get(f"{self.api_base}/leads", headers=headers, params={"limit": 100})
         if resp.status_code == 200:
             leads = resp.json().get("data", []) or []
             if leads:
                 return leads
 
-        resp = requests.get(f"{self.API_BASE_URL}/persons", headers=headers, params={"limit": 100})
+        resp = requests.get(f"{self.api_base}/persons", headers=headers, params={"limit": 100})
         if resp.status_code == 200:
             return resp.json().get("data", []) or []
 
         return {"error": f"Pipedrive fetch failed: {resp.status_code} {resp.text}"}
 
     def fetch_person_by_id(self, person_id) -> dict:
-        """Fetch person details by ID"""
         if not self._ensure_valid_token():
             return {}
         resp = requests.get(
-            f"{self.API_BASE_URL}/persons/{person_id}",
+            f"{self.api_base}/persons/{person_id}",
             headers={"Authorization": f"Bearer {self.access_token}"},
         )
-        return resp.json().get("data") or {} if resp.status_code == 200 else {}
+        url = f"{self.api_base}/persons/{person_id}"
+        print(f"[Pipedrive] GET {url} → {resp.status_code} | {resp.text[:200]}")
+        if resp.status_code == 200:
+            return resp.json().get("data") or {}
+        if resp.status_code == 403:
+            raise _PipedriveScopeError()
+        return {}
 
     def _extract_person_fields(self, item) -> dict:
-        """Extract name/email/phone from a Pipedrive lead or person record"""
         person_obj = item.get("person_id")
 
-        # person_id is an integer — fetch details from API
+        # integer person_id — fetch full details
         if isinstance(person_obj, int):
             person_obj = self.fetch_person_by_id(person_obj)
 
-        # person_id is an object {id, name, email, phone}
+        # summary dict {id, name} without email/phone — fetch full details
         if isinstance(person_obj, dict) and person_obj:
-            name_parts = (person_obj.get("name") or "").split(" ", 1)
+            if person_obj.get("id") and not (person_obj.get("email") or person_obj.get("phone")):
+                person_obj = self.fetch_person_by_id(person_obj["id"]) or person_obj
             emails = person_obj.get("email") or []
             phones = person_obj.get("phone") or []
             return {
-                "first_name": name_parts[0] if name_parts else "",
-                "last_name": name_parts[1] if len(name_parts) > 1 else "",
-                "email": emails[0].get("value") if isinstance(emails, list) and emails else None,
-                "phone": phones[0].get("value") if isinstance(phones, list) and phones else None,
+                "name": (person_obj.get("name") or "").strip() or None,
+                "email": next((e["value"] for e in emails if isinstance(e, dict) and e.get("value")), None),
+                "phone": next((p["value"] for p in phones if isinstance(p, dict) and p.get("value")), None),
             }
 
-        # Persons API or fallback — use title as first_name
-        name_parts = (item.get("name") or item.get("title") or "").split(" ", 1)
+        # no linked person — use item-level fields (Persons API records carry email/phone directly)
         emails = item.get("email") or []
         phones = item.get("phone") or []
         return {
-            "first_name": name_parts[0] if name_parts else "",
-            "last_name": name_parts[1] if len(name_parts) > 1 else "",
-            "email": emails[0].get("value") if isinstance(emails, list) and emails else None,
-            "phone": phones[0].get("value") if isinstance(phones, list) and phones else None,
+            "name": ((item.get("name") or item.get("title") or "").strip()) or None,
+            "email": next((e["value"] for e in emails if isinstance(e, dict) and e.get("value")), None),
+            "phone": next((p["value"] for p in phones if isinstance(p, dict) and p.get("value")), None),
         }
 
     def sync_leads_to_db(self) -> dict:
@@ -142,13 +158,30 @@ class PipedriveService(BaseOAuthService):
         if isinstance(leads, dict):
             return {"success": False, "error": leads.get("error")}
         saved, updated = 0, 0
+        needs_reauth = False
         for item in leads:
-            fields = self._extract_person_fields(item)
+            try:
+                fields = self._extract_person_fields(item)
+            except _PipedriveScopeError:
+                needs_reauth = True
+                fields = {
+                    "name": (item.get("title") or "").strip() or None,
+                    "email": None,
+                    "phone": None,
+                }
             created = self._save_lead(item.get("id"), {
                 "crm_object_type": "lead",
                 "raw_data": item,
-                **fields,
+                "name": fields.get("name"),
+                "email": fields.get("email"),
+                "phone": fields.get("phone"),
             })
             if created: saved += 1
             else: updated += 1
-        return self._finish_sync(saved, updated)
+        result = self._finish_sync(saved, updated)
+        if needs_reauth:
+            result["warning"] = (
+                "Pipedrive connection needs re-authorization to fetch email/phone. "
+                "Please disconnect and reconnect Pipedrive from the CRM settings."
+            )
+        return result

@@ -257,13 +257,14 @@ class StripeService:
     def handle_subscription_deleted(stripe_sub):
         """
         Called on customer.subscription.deleted.
-        Marks local subscription as cancelled.
+        Marks local subscription as cancelled and disconnects all CRM connections.
         """
         from apps.billing.models import Subscription
 
         try:
             sub = Subscription.objects.get(stripe_subscription_id=stripe_sub["id"])
             sub.cancel(reason="Cancelled via Stripe")
+            _disconnect_crm_connections(sub.business_id)
         except Subscription.DoesNotExist:
             pass
 
@@ -378,3 +379,12 @@ class StripeService:
                 "snapshot_price": sub.plan_price.price,
             },
         )
+
+
+def _disconnect_crm_connections(business_id):
+    """Deactivate all CRM connections for a business when subscription ends."""
+    try:
+        from apps.crm_integration.models import CRMConnection
+        CRMConnection.objects.filter(business_id=business_id, is_active=True).update(is_active=False)
+    except Exception:
+        pass

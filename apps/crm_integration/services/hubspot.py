@@ -114,12 +114,13 @@ class HubSpotService(BaseOAuthService):
         saved, updated = 0, 0
         for c in leads:
             p = c.get("properties", {})
+            first = (p.get("firstname") or "").strip()
+            last = (p.get("lastname") or "").strip()
             created = self._save_lead(c.get("id"), {
                 "crm_object_type": "contact",
-                "first_name": p.get("firstname", ""),
-                "last_name": p.get("lastname", ""),
-                "email": p.get("email"),
-                "phone": p.get("phone"),
+                "name": " ".join(filter(None, [first, last])) or None,
+                "email": p.get("email") or None,
+                "phone": p.get("phone") or None,
                 "raw_data": c,
             })
             if created: saved += 1

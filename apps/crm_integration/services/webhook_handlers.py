@@ -2,6 +2,10 @@ import xml.etree.ElementTree as ET
 from apps.crm_integration.models import SyncedLead
 
 
+def _build_name(first, last):
+    return " ".join(filter(None, [(first or "").strip(), (last or "").strip()])) or None
+
+
 def upsert_lead(conn, crm_id, **fields):
     SyncedLead.objects.update_or_create(
         crm_connection=conn,
@@ -35,9 +39,12 @@ def handle_hubspot(conn, data):
         contact = service.fetch_contact_by_id(object_id)
         if contact:
             props = contact.get("properties", {})
-            upsert_lead(conn, object_id, crm_object_type="contact",
-                        first_name=props.get("firstname", ""), last_name=props.get("lastname", ""),
-                        email=props.get("email"), phone=props.get("phone"), raw_data=contact)
+            upsert_lead(conn, object_id,
+                        crm_object_type="contact",
+                        name=_build_name(props.get("firstname"), props.get("lastname")),
+                        email=props.get("email") or None,
+                        phone=props.get("phone") or None,
+                        raw_data=contact)
         else:
             upsert_lead(conn, object_id, crm_object_type="contact", raw_data=event)
 
@@ -45,9 +52,11 @@ def handle_hubspot(conn, data):
 def handle_salesforce(conn, data):
     upsert_lead(conn, data.get("Id") or data.get("id"),
                 crm_object_type="lead",
-                first_name=data.get("FirstName", ""), last_name=data.get("LastName", ""),
-                email=data.get("Email"), phone=data.get("Phone"),
-                company=data.get("Company"), raw_data=data)
+                name=_build_name(data.get("FirstName"), data.get("LastName")),
+                email=data.get("Email") or None,
+                phone=data.get("Phone") or None,
+                company=data.get("Company") or None,
+                raw_data=data)
 
 
 def handle_zoho(conn, data):
@@ -67,11 +76,14 @@ def handle_zoho(conn, data):
     if not lead_id:
         return
 
-    upsert_lead(conn, lead_id, crm_object_type="lead",
-                first_name=record.get("First_Name") or record.get("first_name", ""),
-                last_name=record.get("Last_Name") or record.get("last_name", ""),
-                email=record.get("Email") or record.get("email"),
-                phone=record.get("Phone") or record.get("phone"),
+    upsert_lead(conn, lead_id,
+                crm_object_type="lead",
+                name=_build_name(
+                    record.get("First_Name") or record.get("first_name"),
+                    record.get("Last_Name") or record.get("last_name"),
+                ),
+                email=record.get("Email") or record.get("email") or None,
+                phone=record.get("Phone") or record.get("phone") or None,
                 raw_data=record)
 
 
@@ -81,7 +93,8 @@ def handle_pipedrive(conn, data):
     service = PipedriveService(conn)
     item = data.get("current") or data
     fields = service._extract_person_fields(item)
-    upsert_lead(conn, item.get("id"), crm_object_type="person", raw_data=item, **fields)
+    upsert_lead(conn, item.get("id"), crm_object_type="person", raw_data=item,
+                name=fields.get("name"), email=fields.get("email"), phone=fields.get("phone"))
 
 
 _HANDLERS = {

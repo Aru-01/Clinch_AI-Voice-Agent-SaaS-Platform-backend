@@ -143,10 +143,9 @@ class SyncedLead(models.Model):
     crm_object_type = models.CharField(max_length=50, default='lead')  # lead, contact, deal, etc
 
     # Lead information
-    first_name = models.CharField(max_length=255, null=True, blank=True)
-    last_name = models.CharField(max_length=255, null=True, blank=True)
+    name = models.CharField(max_length=511, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
-    phone = models.CharField(max_length=20, null=True, blank=True)
+    phone = models.CharField(max_length=30, null=True, blank=True)
     company = models.CharField(max_length=255, null=True, blank=True)
 
     # Additional info
@@ -173,7 +172,7 @@ class SyncedLead(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name} ({self.email})" if self.first_name else f"Lead {self.crm_lead_id}"
+        return f"{self.name} ({self.email})" if self.name else f"Lead {self.crm_lead_id}"
 
 
 class CRMSyncState(models.Model):

@@ -86,12 +86,13 @@ class ZohoService(BaseOAuthService):
             return {"success": False, "error": leads.get("error")}
         saved, updated = 0, 0
         for lead in leads:
+            first = (lead.get("First_Name") or "").strip()
+            last = (lead.get("Last_Name") or "").strip()
             created = self._save_lead(lead.get("id"), {
                 "crm_object_type": "lead",
-                "first_name": lead.get("First_Name", ""),
-                "last_name": lead.get("Last_Name", ""),
-                "email": lead.get("Email"),
-                "phone": lead.get("Phone"),
+                "name": " ".join(filter(None, [first, last])) or None,
+                "email": lead.get("Email") or None,
+                "phone": lead.get("Phone") or None,
                 "raw_data": lead,
             })
             if created: saved += 1

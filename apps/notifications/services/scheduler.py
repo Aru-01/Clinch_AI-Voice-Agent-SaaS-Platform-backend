@@ -31,7 +31,6 @@ def send_meeting_reminders():
         return
 
     try:
-        from apps.bookings.models import Booking
         from apps.notifications.models import Notification
         from apps.notifications.services import notify_business_admins
 
@@ -81,8 +80,6 @@ def _bookings_in_window(window_start_dt, window_end_dt):
     Returns bookings whose combined (meeting_date + meeting_time) falls between
     window_start_dt and window_end_dt. Works across midnight boundaries.
     """
-    from django.db.models import DateTimeField, ExpressionWrapper, F
-    from django.db.models.functions import Cast
     from apps.bookings.models import Booking
 
     # If window stays within the same day, filter by date+time range directly
@@ -130,6 +127,15 @@ def send_subscription_expiry_warnings():
 
         for sub in active_subs:
             days_left = (sub.current_period_end - now).days
+
+            # Auto-expire and disconnect CRM when period has ended
+            if days_left < 0:
+                sub.status = "expired"
+                sub.save(update_fields=["status", "updated_at"])
+                from apps.crm_integration.models import CRMConnection
+                CRMConnection.objects.filter(business=sub.business, is_active=True).update(is_active=False)
+                continue
+
             if days_left not in EXPIRY_WARNING_DAYS:
                 continue
 

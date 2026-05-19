@@ -103,12 +103,13 @@ class SalesforceService(BaseOAuthService):
             return {"success": False, "error": records.get("error")}
         saved, updated = 0, 0
         for r in records:
+            first = (r.get("FirstName") or "").strip()
+            last = (r.get("LastName") or "").strip()
             created = self._save_lead(r.get("Id"), {
                 "crm_object_type": r.get("_sf_type", "lead").lower(),
-                "first_name": r.get("FirstName") or "",
-                "last_name": r.get("LastName") or "",
-                "email": r.get("Email"),
-                "phone": r.get("Phone"),
+                "name": " ".join(filter(None, [first, last])) or None,
+                "email": r.get("Email") or None,
+                "phone": r.get("Phone") or None,
                 "raw_data": {k: v for k, v in r.items() if k != "_sf_type"},
             })
             if created: saved += 1

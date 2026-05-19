@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from drf_yasg.utils import swagger_auto_schema
 
+from core.permissions import IsBusinessAdmin, HasActiveSubscription
 from apps.crm_integration.services import get_oauth_service
 from apps.crm_integration.services.webhook_handlers import dispatch, parse_salesforce_soap
 from apps.crm_integration.models import CRMConnection, CRMWebhookLog, SyncedLead, CRMSyncState
@@ -30,7 +31,7 @@ SALESFORCE_ACK = (
 
 
 class CRMOAuthURLView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsBusinessAdmin, HasActiveSubscription]
 
     @swagger_auto_schema(**schemas.crm_oauth_url_schema)
     def get(self, request, crm_type):
@@ -57,7 +58,7 @@ class CRMOAuthURLView(APIView):
 
 
 class CRMOAuthCallbackView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsBusinessAdmin, HasActiveSubscription]
 
     @swagger_auto_schema(auto_schema=None)
     @transaction.atomic
@@ -100,7 +101,10 @@ class CRMOAuthCallbackView(APIView):
                     "refresh_token": token_result.get("refresh_token"),
                     "access_token_expires_at": expires_at,
                     "is_active": True,
-                    "raw_config": {"instance_url": token_result.get("instance_url")},
+                    "raw_config": {
+                        "instance_url": token_result.get("instance_url"),
+                        "api_domain": token_result.get("api_domain"),
+                    },
                 },
             )
             if created:
@@ -158,7 +162,7 @@ class CRMDisconnectView(APIView):
 
 
 class CRMSyncView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsBusinessAdmin, HasActiveSubscription]
 
     @swagger_auto_schema(**schemas.crm_sync_schema)
     def post(self, request, connection_id):
