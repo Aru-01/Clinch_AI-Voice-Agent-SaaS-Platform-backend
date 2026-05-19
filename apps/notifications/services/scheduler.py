@@ -18,6 +18,7 @@ def _acquire_lock(key, timeout):
     With Django's default LocMemCache (dev), always returns True.
     """
     from django.core.cache import cache
+
     return cache.add(key, 1, timeout=timeout)
 
 
@@ -67,7 +68,9 @@ def send_meeting_reminders():
             )
             logger.info(
                 "Meeting reminder sent for booking %s (%s at %s)",
-                booking.id, booking.customer_name, booking.meeting_time,
+                booking.id,
+                booking.customer_name,
+                booking.meeting_time,
             )
     except Exception:
         logger.exception("Error in send_meeting_reminders")
@@ -93,11 +96,13 @@ def _bookings_in_window(window_start_dt, window_end_dt):
     # Part 1: end of window_start_dt's day  (e.g. 23:54 → 23:59:59)
     # Part 2: start of window_end_dt's day (e.g. 00:00 → 00:06)
     from django.db.models import Q
+
     return Booking.objects.filter(
         Q(
             meeting_date=window_start_dt.date(),
             meeting_time__gte=window_start_dt.time(),
-        ) | Q(
+        )
+        | Q(
             meeting_date=window_end_dt.date(),
             meeting_time__lte=window_end_dt.time(),
         )
@@ -170,9 +175,53 @@ def cleanup_old_notifications():
         cutoff = timezone.now() - timedelta(days=NOTIFICATION_RETENTION_DAYS)
         deleted, _ = Notification.objects.filter(created_at__lt=cutoff).delete()
         if deleted:
-            logger.info("Cleaned up %d notifications older than %d days.", deleted, NOTIFICATION_RETENTION_DAYS)
+            logger.info(
+                "Cleaned up %d notifications older than %d days.",
+                deleted,
+                NOTIFICATION_RETENTION_DAYS,
+            )
     except Exception:
         logger.exception("Error in cleanup_old_notifications")
+
+
+def sync_crm_connections():
+    """
+    Runs every 5 minutes. Polls all active CRM connections and syncs new/updated leads.
+    Salesforce uses incremental sync (LastModifiedDate >= last_sync_at).
+    Other CRMs rely on webhooks but this acts as a fallback safety net.
+    """
+    if not _acquire_lock("crm:lock:sync", timeout=270):
+        return
+    try:
+        from apps.crm_integration.models import CRMConnection
+        from apps.crm_integration.services import get_oauth_service
+
+        connections = CRMConnection.objects.filter(is_active=True).select_related(
+            "business"
+        )
+        for conn in connections:
+            try:
+                service = get_oauth_service(conn.crm_type, conn)
+                result = service.sync_leads_to_db()
+                if result.get("success") and (
+                    result.get("saved", 0) or result.get("updated", 0)
+                ):
+                    logger.info(
+                        "CRM poll sync [%s] saved=%s updated=%s",
+                        conn.crm_type,
+                        result.get("saved"),
+                        result.get("updated"),
+                    )
+            except NotImplementedError:
+                pass
+            except Exception:
+                logger.exception(
+                    "CRM poll sync failed for connection %s (%s)",
+                    conn.id,
+                    conn.crm_type,
+                )
+    except Exception:
+        logger.exception("Error in sync_crm_connections")
 
 
 def start():
@@ -193,6 +242,12 @@ def start():
         cleanup_old_notifications,
         trigger=IntervalTrigger(hours=24),
         id="cleanup_old_notifications",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        sync_crm_connections,
+        trigger=IntervalTrigger(minutes=60),
+        id="crm_sync",
         replace_existing=True,
     )
     scheduler.start()

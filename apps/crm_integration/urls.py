@@ -9,6 +9,7 @@ urlpatterns = [
     # Connection Management
     path("connections/", views.CRMConnectionListView.as_view(), name="crm-connections-list"),
     path("connections/<str:connection_id>/disconnect/", views.CRMDisconnectView.as_view(), name="crm-disconnect"),
+    path("connections/<str:connection_id>/sync/", views.CRMSyncView.as_view(), name="crm-sync"),
 
     # Webhooks
     path("webhook/<str:crm_type>/", views.CRMWebhookView.as_view(), name="crm-webhook"),
