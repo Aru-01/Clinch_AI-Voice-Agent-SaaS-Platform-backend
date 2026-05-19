@@ -69,12 +69,9 @@ class APIConfigSerializer(MaskedReadMixin, serializers.ModelSerializer):
 class TwilioConfigSerializer(MaskedReadMixin, serializers.ModelSerializer):
     masked_fields = ["twilio_sid", "twilio_token"]
 
-    twilio_sid = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True
-    )
-    twilio_token = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True
-    )
+    twilio_sid = serializers.CharField(required=True)
+    twilio_token = serializers.CharField(required=True)
+    twilio_number = serializers.CharField(required=True)
 
     class Meta:
         model = TwilioConfig
@@ -88,6 +85,21 @@ class TwilioConfigSerializer(MaskedReadMixin, serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "business", "created_at", "updated_at"]
+
+    def validate_twilio_sid(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Twilio SID is required.")
+        return value
+
+    def validate_twilio_token(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Twilio Token is required.")
+        return value
+
+    def validate_twilio_number(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Twilio Phone Number is required.")
+        return value
 
     def update(self, instance, validated_data):
         for attr, value in validated_data.items():

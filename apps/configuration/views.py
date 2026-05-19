@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_yasg.utils import swagger_auto_schema
 
-from core.permissions import IsBusinessAdmin
+from core.permissions import IsBusinessAdmin, HasActiveSubscription
 from apps.configuration.models import (
     APIConfig,
     TwilioConfig,
@@ -103,6 +103,7 @@ class APIConfigView(SingletonConfigView):
 
 
 class TwilioConfigView(SingletonConfigView):
+    permission_classes = [IsBusinessAdmin, HasActiveSubscription]
     serializer_class = TwilioConfigSerializer
     model_class = TwilioConfig
 
@@ -120,6 +121,7 @@ class TwilioConfigView(SingletonConfigView):
 
 
 class VoiceConfigView(SingletonConfigView):
+    permission_classes = [IsBusinessAdmin, HasActiveSubscription]
     serializer_class = VoiceConfigSerializer
     model_class = VoiceConfig
     parser_classes = [MultiPartParser, FormParser, JSONParser]
@@ -143,7 +145,7 @@ class KnowledgeFileListCreateView(APIView):
     POST → Upload a new knowledge file
     """
 
-    permission_classes = [IsBusinessAdmin]
+    permission_classes = [IsBusinessAdmin, HasActiveSubscription]
     parser_classes = [MultiPartParser, FormParser]
 
     @swagger_auto_schema(**schemas.knowledge_file_list_schema)
@@ -171,7 +173,7 @@ class KnowledgeFileDetailView(APIView):
     DELETE → Remove a specific knowledge file (must belong to same business)
     """
 
-    permission_classes = [IsBusinessAdmin]
+    permission_classes = [IsBusinessAdmin, HasActiveSubscription]
 
     def _get_object(self, pk, business_id):
         return KnowledgeFile.objects.filter(pk=pk, business_id=business_id).first()

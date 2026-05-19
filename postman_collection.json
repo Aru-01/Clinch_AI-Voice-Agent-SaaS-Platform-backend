@@ -1,0 +1,1011 @@
+{
+  "info": {
+    "name": "Clinch SAAS - CRM Integration API",
+    "description": "Comprehensive API collection for CRM integration, authentication, and lead management",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "OAuth flow for CRM connections",
+      "item": [
+        {
+          "name": "Get OAuth URL",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/crm/oauth-url/{{crm_type}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crm", "oauth-url", "{{crm_type}}", ""],
+              "query": []
+            },
+            "description": "Generate OAuth authorization URL for a CRM\n\nSupported CRM types:\n- hubspot\n- salesforce\n- zoho\n- pipedrive\n- ghl"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/crm/oauth-url/hubspot/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "oauth-url", "hubspot", ""]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "success": true,
+                "authorization_url": "https://app.hubspot.com/oauth/authorize?client_id=xxx&redirect_uri=xxx&state=uuid&scope=crm.objects.contacts.read",
+                "state": "550e8400-e29b-41d4-a716-446655440000"
+              }
+            },
+            {
+              "name": "Unsupported CRM",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/crm/oauth-url/invalid/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "oauth-url", "invalid", ""]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "body": {
+                "success": false,
+                "error": "Unsupported CRM: invalid"
+              }
+            }
+          ]
+        },
+        {
+          "name": "OAuth Callback",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/crm/callback/{{crm_type}}/?code={{auth_code}}&state={{state}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crm", "callback", "{{crm_type}}", ""],
+              "query": [
+                {
+                  "key": "code",
+                  "value": "{{auth_code}}"
+                },
+                {
+                  "key": "state",
+                  "value": "{{state}}"
+                }
+              ]
+            },
+            "description": "Handle OAuth callback from CRM provider\n\nParameters:\n- code: Authorization code from OAuth provider\n- state: State parameter for CSRF protection (from Get OAuth URL response)"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/crm/callback/hubspot/?code=xxx&state=uuid",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "callback", "hubspot", ""],
+                  "query": [
+                    {
+                      "key": "code",
+                      "value": "xxx"
+                    },
+                    {
+                      "key": "state",
+                      "value": "uuid"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "success": true,
+                "message": "hubspot connected successfully",
+                "connection_id": "550e8400-e29b-41d4-a716-446655440000",
+                "initial_sync": {
+                  "success": true,
+                  "saved": 15,
+                  "updated": 0
+                }
+              }
+            },
+            {
+              "name": "Invalid State",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/crm/callback/hubspot/?code=xxx&state=wrong-state",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "callback", "hubspot", ""],
+                  "query": [
+                    {
+                      "key": "code",
+                      "value": "xxx"
+                    },
+                    {
+                      "key": "state",
+                      "value": "wrong-state"
+                    }
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "body": {
+                "success": false,
+                "error": "Invalid state"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CRM Connections",
+      "description": "Manage CRM integrations and connections",
+      "item": [
+        {
+          "name": "List CRM Connections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/crm/connections/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crm", "connections", ""]
+            },
+            "description": "Get all active CRM connections for the authenticated user's business"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/crm/connections/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "connections", ""]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "success": true,
+                "data": [
+                  {
+                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "user": "550e8400-e29b-41d4-a716-446655440001",
+                    "business": "550e8400-e29b-41d4-a716-446655440002",
+                    "crm_type": "hubspot",
+                    "is_active": true,
+                    "synced_leads_count": 25,
+                    "last_sync_at": "2026-05-19T10:30:00Z",
+                    "created_at": "2026-05-15T08:00:00Z",
+                    "updated_at": "2026-05-19T10:30:00Z"
+                  },
+                  {
+                    "id": "550e8400-e29b-41d4-a716-446655440003",
+                    "user": "550e8400-e29b-41d4-a716-446655440001",
+                    "business": "550e8400-e29b-41d4-a716-446655440002",
+                    "crm_type": "salesforce",
+                    "is_active": true,
+                    "synced_leads_count": 42,
+                    "last_sync_at": "2026-05-19T10:25:00Z",
+                    "created_at": "2026-05-14T09:15:00Z",
+                    "updated_at": "2026-05-19T10:25:00Z"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Disconnect CRM",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/crm/connections/{{connection_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crm", "connections", "{{connection_id}}", ""]
+            },
+            "description": "Disconnect and deactivate a CRM connection"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/crm/connections/550e8400-e29b-41d4-a716-446655440000/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "connections", "550e8400-e29b-41d4-a716-446655440000", ""]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "success": true,
+                "message": "HubSpot disconnected"
+              }
+            },
+            {
+              "name": "Not Found",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/crm/connections/invalid-id/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "connections", "invalid-id", ""]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "body": {
+                "success": false,
+                "error": "Connection not found"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Manual Sync CRM Leads",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": {
+              "raw": "{{base_url}}/api/crm/connections/{{connection_id}}/sync/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crm", "connections", "{{connection_id}}", "sync", ""]
+            },
+            "description": "Manually trigger a sync of leads from a CRM connection"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": ""
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/crm/connections/550e8400-e29b-41d4-a716-446655440000/sync/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "connections", "550e8400-e29b-41d4-a716-446655440000", "sync", ""]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "success": true,
+                "saved": 8,
+                "updated": 3
+              }
+            },
+            {
+              "name": "Connection Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/crm/connections/invalid-id/sync/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "connections", "invalid-id", "sync", ""]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "body": {
+                "success": false,
+                "error": "Connection not found"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "description": "CRM webhook endpoints for receiving real-time updates",
+      "item": [
+        {
+          "name": "HubSpot Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-HubSpot-Request-Timestamp",
+                "value": "{{$timestamp}}",
+                "type": "text"
+              },
+              {
+                "key": "X-HubSpot-Signature-v3",
+                "value": "{{hubspot_signature}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"eventId\": \"1234567890\",\n    \"subscriptionType\": \"contact.creation\",\n    \"attemptNumber\": 0,\n    \"objectId\": \"12345\",\n    \"changeSource\": \"CRM_UI\",\n    \"occurredAt\": 1620914400000,\n    \"changes\": [\n      {\n        \"propertyName\": \"firstname\",\n        \"propertyValue\": \"John\",\n        \"timestamp\": 1620914400000,\n        \"source\": \"CRM_UI\",\n        \"sourceId\": null\n      }\n    ]\n  }\n]"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/crm/webhook/hubspot/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crm", "webhook", "hubspot", ""]
+            },
+            "description": "Receive HubSpot contact events via webhook"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "[{\"eventId\": \"1234567890\", \"subscriptionType\": \"contact.creation\", \"attemptNumber\": 0, \"objectId\": \"12345\"}]"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/crm/webhook/hubspot/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "webhook", "hubspot", ""]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "success": true,
+                "message": "Webhook from hubspot processed"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Salesforce Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/xml",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:out=\"http://soap.sforce.com/2005/09/outbound\">\n  <soapenv:Body>\n    <out:notifications>\n      <out:Ack>false</out:Ack>\n      <out:ActionId>04l9R00000EzS2UQAV</out:ActionId>\n      <out:EnterpriseUrl>https://example.my.salesforce.com/services/Soap/c/57.0/00D9R000000IZ3Z</out:EnterpriseUrl>\n      <out:PartnerUrl>https://example.my.salesforce.com/services/Soap/s/57.0/00D9R000000IZ3Z</out:PartnerUrl>\n      <out:Notification>\n        <out:Id>04m9R00000EzS2UQAV</out:Id>\n        <out:sObject xsi:type=\"out:Lead\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n          <sf:Id xmlns:sf=\"http://www.force.com/2009/04/asforce/api\">00Q9R000001UrtUUAS</sf:Id>\n          <sf:Email xmlns:sf=\"http://www.force.com/2009/04/asforce/api\">john.doe@example.com</sf:Email>\n          <sf:FirstName xmlns:sf=\"http://www.force.com/2009/04/asforce/api\">John</sf:FirstName>\n          <sf:LastName xmlns:sf=\"http://www.force.com/2009/04/asforce/api\">Doe</sf:LastName>\n          <sf:Phone xmlns:sf=\"http://www.force.com/2009/04/asforce/api\">+1-555-0100</sf:Phone>\n          <sf:Company xmlns:sf=\"http://www.force.com/2009/04/asforce/api\">Acme Corp</sf:Company>\n        </out:sObject>\n      </out:Notification>\n    </out:notifications>\n  </soapenv:Body>\n</soapenv:Envelope>"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/crm/webhook/salesforce/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crm", "webhook", "salesforce", ""]
+            },
+            "description": "Receive Salesforce lead/contact events via Outbound Messages (SOAP XML)"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "text/xml"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "<?xml version=\"1.0\"?><soapenv:Envelope>..."
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/crm/webhook/salesforce/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "webhook", "salesforce", ""]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "xml",
+              "body": "<?xml version=\"1.0\"?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"><soapenv:Body><notificationsResponse xmlns=\"http://soap.sforce.com/2005/09/outbound\"><Ack>true</Ack></notificationsResponse></soapenv:Body></soapenv:Envelope>"
+            }
+          ]
+        },
+        {
+          "name": "Zoho Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"data\": [\n    {\n      \"id\": \"5678901234\",\n      \"first_name\": \"Jane\",\n      \"last_name\": \"Smith\",\n      \"Email\": \"jane.smith@example.com\",\n      \"Phone\": \"+1-555-0102\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/crm/webhook/zoho/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crm", "webhook", "zoho", ""]
+            },
+            "description": "Receive Zoho lead/contact events via webhook"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"data\": [{\"id\": \"5678901234\", \"first_name\": \"Jane\", \"last_name\": \"Smith\"}]}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/crm/webhook/zoho/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "webhook", "zoho", ""]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "success": true,
+                "message": "Webhook from zoho processed"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pipedrive Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current\": {\n    \"id\": \"9876543210\",\n    \"name\": \"Robert Johnson\",\n    \"email\": [\n      {\n        \"value\": \"robert.johnson@example.com\",\n        \"primary\": true\n      }\n    ],\n    \"phone\": [\n      {\n        \"value\": \"+1-555-0103\",\n        \"primary\": true\n      }\n    ],\n    \"person_id\": 5432\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/crm/webhook/pipedrive/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crm", "webhook", "pipedrive", ""]
+            },
+            "description": "Receive Pipedrive person/lead events via webhook"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"current\": {\"id\": \"9876543210\", \"name\": \"Robert Johnson\"}}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/crm/webhook/pipedrive/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "webhook", "pipedrive", ""]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "success": true,
+                "message": "Webhook from pipedrive processed"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GoHighLevel Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"ContactCreated\",\n  \"contact\": {\n    \"id\": \"contact-123\",\n    \"firstName\": \"Michael\",\n    \"lastName\": \"Brown\",\n    \"email\": \"michael.brown@example.com\",\n    \"phone\": \"+1-555-0104\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/crm/webhook/ghl/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crm", "webhook", "ghl", ""]
+            },
+            "description": "Receive GoHighLevel contact events via webhook"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"type\": \"ContactCreated\", \"contact\": {\"id\": \"contact-123\", \"firstName\": \"Michael\"}}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/crm/webhook/ghl/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "webhook", "ghl", ""]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "success": true,
+                "message": "Webhook from ghl processed"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Leads",
+      "description": "Manage and list synced leads from CRM connections",
+      "item": [
+        {
+          "name": "List Synced Leads",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/crm/leads/?crm_type={{crm_type}}&page={{page}}&page_size={{page_size}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "crm", "leads", ""],
+              "query": [
+                {
+                  "key": "crm_type",
+                  "value": "{{crm_type}}",
+                  "disabled": true,
+                  "description": "Filter by CRM type (optional): hubspot, salesforce, zoho, pipedrive, ghl"
+                },
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": "Page number for pagination (default: 1)"
+                },
+                {
+                  "key": "page_size",
+                  "value": "{{page_size}}",
+                  "disabled": true,
+                  "description": "Number of items per page (default: 10)"
+                }
+              ]
+            },
+            "description": "Get paginated list of all synced leads for the authenticated user's business"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/crm/leads/?page=1&page_size=10",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "leads", ""],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "page_size",
+                      "value": "10"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "count": 42,
+                "next": "{{base_url}}/api/crm/leads/?page=2&page_size=10",
+                "previous": null,
+                "results": [
+                  {
+                    "id": "lead-001",
+                    "crm_connection": "550e8400-e29b-41d4-a716-446655440000",
+                    "crm_type": "hubspot",
+                    "crm_lead_id": "12345",
+                    "crm_object_type": "contact",
+                    "business": "550e8400-e29b-41d4-a716-446655440002",
+                    "name": "John Doe",
+                    "email": "john.doe@example.com",
+                    "phone": "+1-555-0100",
+                    "status": "pending",
+                    "raw_data": {},
+                    "created_at": "2026-05-19T10:30:00Z",
+                    "updated_at": "2026-05-19T10:30:00Z"
+                  },
+                  {
+                    "id": "lead-002",
+                    "crm_connection": "550e8400-e29b-41d4-a716-446655440003",
+                    "crm_type": "salesforce",
+                    "crm_lead_id": "00Q9R000001UrtUUAS",
+                    "crm_object_type": "lead",
+                    "business": "550e8400-e29b-41d4-a716-446655440002",
+                    "name": "Jane Smith",
+                    "email": "jane.smith@example.com",
+                    "phone": "+1-555-0102",
+                    "status": "pending",
+                    "raw_data": {},
+                    "created_at": "2026-05-18T14:15:00Z",
+                    "updated_at": "2026-05-18T14:15:00Z"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Filtered by CRM Type",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/crm/leads/?crm_type=hubspot&page=1",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "crm", "leads", ""],
+                  "query": [
+                    {
+                      "key": "crm_type",
+                      "value": "hubspot"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "count": 25,
+                "next": null,
+                "previous": null,
+                "results": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Payment & Billing",
+      "description": "Subscription and billing related endpoints (placeholder for future integration)",
+      "item": [
+        {
+          "name": "Get Subscription Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/billing/subscription/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "billing", "subscription", ""]
+            },
+            "description": "Get current subscription status for the business"
+          },
+          "response": [
+            {
+              "name": "Active Subscription",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/billing/subscription/",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "billing", "subscription", ""]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "id": "sub-123",
+                "status": "active",
+                "plan": "professional",
+                "current_period_start": "2026-05-01T00:00:00Z",
+                "current_period_end": "2026-06-01T00:00:00Z",
+                "days_left": 13,
+                "auto_renew": true
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Billing History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/billing/invoices/?page={{page}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "billing", "invoices", ""],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get billing history and invoices"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/billing/invoices/?page=1",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "billing", "invoices", ""],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": {
+                "count": 5,
+                "results": [
+                  {
+                    "id": "inv-001",
+                    "amount": 9900,
+                    "currency": "usd",
+                    "status": "paid",
+                    "date": "2026-05-01T00:00:00Z",
+                    "due_date": "2026-05-15T00:00:00Z"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string",
+      "description": "Base URL for the API (update for production)"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string",
+      "description": "Bearer token for authentication (obtain from login endpoint)"
+    },
+    {
+      "key": "crm_type",
+      "value": "hubspot",
+      "type": "string",
+      "description": "CRM type: hubspot, salesforce, zoho, pipedrive, ghl"
+    },
+    {
+      "key": "connection_id",
+      "value": "",
+      "type": "string",
+      "description": "UUID of the CRM connection"
+    },
+    {
+      "key": "auth_code",
+      "value": "",
+      "type": "string",
+      "description": "Authorization code from OAuth provider"
+    },
+    {
+      "key": "state",
+      "value": "",
+      "type": "string",
+      "description": "State parameter returned from Get OAuth URL endpoint"
+    },
+    {
+      "key": "page",
+      "value": "1",
+      "type": "string",
+      "description": "Page number for pagination"
+    },
+    {
+      "key": "page_size",
+      "value": "10",
+      "type": "string",
+      "description": "Items per page for pagination"
+    },
+    {
+      "key": "hubspot_signature",
+      "value": "",
+      "type": "string",
+      "description": "HubSpot webhook signature (X-HubSpot-Signature-v3 header)"
+    }
+  ]
+}

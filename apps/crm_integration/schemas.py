@@ -30,6 +30,13 @@ crm_sync_schema = dict(
     tags=[TAG],
 )
 
+crm_sync_all_schema = dict(
+    operation_summary="Sync All Connected CRM Leads",
+    operation_description="Manually sync leads from all active CRM connections for the business",
+    responses={200: openapi.Response("Sync result: {success, total_saved, total_updated, total_errors, details}")},
+    tags=[TAG],
+)
+
 crm_leads_list_schema = dict(
     operation_summary="List Synced Leads",
     operation_description="Get all leads synced from CRMs. Filter by crm_type.",

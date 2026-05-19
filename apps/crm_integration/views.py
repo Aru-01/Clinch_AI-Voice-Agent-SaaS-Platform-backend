@@ -177,6 +177,50 @@ class CRMSyncView(APIView):
             return Response({"success": False, "error": str(e)}, status=400)
 
 
+class CRMSyncAllView(APIView):
+    permission_classes = [IsBusinessAdmin, HasActiveSubscription]
+
+    @swagger_auto_schema(**schemas.crm_sync_all_schema)
+    def post(self, request):
+        try:
+            business = request.user.business
+            if not business:
+                return Response({"success": False, "error": "No business found"}, status=400)
+
+            connections = CRMConnection.objects.filter(business=business, is_active=True)
+            if not connections.exists():
+                return Response({"success": False, "error": "No active CRM connections found"}, status=404)
+
+            results = {}
+            for conn in connections:
+                try:
+                    result = get_oauth_service(conn.crm_type, conn).sync_leads_to_db()
+                    results[str(conn.id)] = {
+                        "crm_type": conn.crm_type,
+                        "result": result
+                    }
+                except Exception as e:
+                    results[str(conn.id)] = {
+                        "crm_type": conn.crm_type,
+                        "result": {"success": False, "error": str(e)}
+                    }
+
+            total_saved = sum(r["result"].get("saved", 0) for r in results.values() if r["result"].get("success"))
+            total_updated = sum(r["result"].get("updated", 0) for r in results.values() if r["result"].get("success"))
+            total_errors = sum(1 for r in results.values() if not r["result"].get("success"))
+
+            return Response({
+                "success": True,
+                "total_connections": len(results),
+                "total_saved": total_saved,
+                "total_updated": total_updated,
+                "total_errors": total_errors,
+                "details": results
+            })
+        except Exception as e:
+            return Response({"success": False, "error": str(e)}, status=400)
+
+
 class CRMWebhookView(APIView):
 
     @swagger_auto_schema(**schemas.crm_webhook_schema)
