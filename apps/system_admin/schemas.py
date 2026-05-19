@@ -39,26 +39,77 @@ system_user_list_schema = {
 # Business Admin List Schema
 business_admin_list_schema = {
     "operation_summary": "List Business Admins",
-    "operation_description": "Retrieves a list of all business administrators with join dates and subscription metrics. Restricted to System Admins.",
+    "operation_description": "Retrieves a paginated list of all business administrators with basic info. Restricted to System Admins.",
     "tags": [SYSTEM_TAG],
     "responses": {
         200: openapi.Response(
             description="List of business admins",
             examples={
-                "application/json": [
-                    {
-                        "id": "uuid",
-                        "name": "Business Owner",
-                        "email": "owner@example.com",
-                        "phone": "01700000000",
-                        "join_date": "2026-05-08",
-                        "plan": "Free",
-                        "total_leads": 0,
-                        "conversation_rate": 0.0,
-                    }
-                ]
+                "application/json": {
+                    "count": 50,
+                    "next": "http://api.example.com/api/system-admin/business-admins/?page=2",
+                    "previous": None,
+                    "results": [
+                        {
+                            "id": "uuid",
+                            "name": "Business Owner",
+                            "email": "owner@example.com",
+                            "phone": "01700000000",
+                            "plan": "Professional",
+                            "plan_start_date": "2026-05-08",
+                            "plan_end_date": "2026-06-08",
+                        }
+                    ]
+                }
             },
         ),
+        403: error_response,
+    },
+}
+
+# Business Admin Detail Schema
+business_admin_detail_schema = {
+    "operation_summary": "Get Business Admin Details",
+    "operation_description": "Retrieves detailed information about a specific business admin including business profile, subscription, and all metrics.",
+    "tags": [SYSTEM_TAG],
+    "responses": {
+        200: openapi.Response(
+            description="Business admin details",
+            examples={
+                "application/json": {
+                    "success": True,
+                    "user": {
+                        "id": "uuid",
+                        "name": "John Doe",
+                        "email": "john@example.com",
+                        "phone": "01700000000",
+                        "profile_image": "https://...",
+                        "created_at": "2026-05-08T10:00:00Z",
+                    },
+                    "business": {
+                        "id": "uuid",
+                        "name": "Acme Corp",
+                        "description": "Business description",
+                        "address": "123 Main St",
+                        "phone": "+1-555-0100",
+                        "created_at": "2026-05-08T10:00:00Z",
+                    },
+                    "subscription": {
+                        "plan": "Professional (monthly)",
+                        "start_date": "2026-05-08",
+                        "end_date": "2026-06-08",
+                        "status": "active",
+                    },
+                    "stats": {
+                        "total_leads": 45,
+                        "total_calls": 32,
+                        "conversion_rate": 15.6,
+                        "total_appointments": 7,
+                    }
+                }
+            },
+        ),
+        404: error_response,
         403: error_response,
     },
 }

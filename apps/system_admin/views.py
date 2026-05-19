@@ -7,12 +7,13 @@ from apps.system_admin.permissions import IsSystemAdmin
 from apps.system_admin.serializers import (
     SystemAdminCreateSerializer,
     BusinessAdminListSerializer,
+    BusinessAdminDetailSerializer,
 )
 from apps.system_admin import schemas
 from apps.accounts.serializers import UserSerializer
 from apps.accounts.models import OTPCode
 from apps.accounts.services import utils
-from apps.billing.models import Invoice, Subscription
+from apps.billing.models import Invoice, Subscription, SubscriptionStatus
 from apps.billing.serializers import InvoiceSerializer, SubscriptionSerializer
 from apps.system_admin.services.stats_service import StatsService
 
@@ -40,7 +41,8 @@ class SystemUserListView(generics.ListAPIView):
 
 class BusinessAdminListView(generics.ListAPIView):
     """
-    List all business admins. Recent joiners first.
+    List all business admins with minimal data. Recent joiners first.
+    Optimized to use prefetch_related for subscription data.
     """
 
     @swagger_auto_schema(**schemas.business_admin_list_schema)
@@ -172,3 +174,50 @@ class AdminAllSubscriptionsView(generics.ListAPIView):
         return Subscription.objects.select_related(
             "business", "plan_price__plan"
         ).order_by("-created_at")
+
+
+class BusinessAdminDetailView(APIView):
+    """
+    GET /api/system-admin/business-admins/{user_id}/
+    System admin views detailed data for a specific business admin.
+    Includes full business profile, stats, and metrics.
+    """
+
+    permission_classes = [IsSystemAdmin]
+
+    @swagger_auto_schema(**schemas.business_admin_detail_schema)
+    def get(self, request, user_id):
+        try:
+            from django.db.models import Prefetch
+
+            user = User.objects.select_related("business").prefetch_related(
+                Prefetch(
+                    "business__subscriptions",
+                    queryset=Subscription.objects.select_related("plan_price__plan")
+                )
+            ).get(
+                id=user_id,
+                user_roles__role__name="business_admin"
+            )
+
+            if not user.business:
+                return Response({
+                    "success": False,
+                    "error": "User has no business assigned"
+                }, status=404)
+
+            serializer = BusinessAdminDetailSerializer(user)
+            return Response({
+                "success": True,
+                "data": serializer.data
+            })
+        except User.DoesNotExist:
+            return Response({
+                "success": False,
+                "error": "Business admin not found"
+            }, status=404)
+        except Exception as e:
+            return Response({
+                "success": False,
+                "error": str(e)
+            }, status=400)
