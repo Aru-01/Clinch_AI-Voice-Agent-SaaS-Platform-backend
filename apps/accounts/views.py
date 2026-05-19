@@ -1,8 +1,7 @@
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import AllowAny
 from django.contrib.auth import authenticate, get_user_model
 from django.conf import settings
 from django.utils import timezone
@@ -10,35 +9,10 @@ from drf_yasg.utils import swagger_auto_schema
 from apps.accounts import serializers
 from apps.accounts.models import OTPCode, Business
 from apps.accounts.services import utils, schemas
+from apps.accounts.services.utils import set_auth_cookies
 from apps.accounts.services.permissions import IsVerifiedUser
 
 User = get_user_model()
-
-
-def set_auth_cookies(response, user):
-    refresh = RefreshToken.for_user(user)
-    access_token = str(refresh.access_token)
-    refresh_token = str(refresh)
-
-    response.set_cookie(
-        key=settings.SIMPLE_JWT["AUTH_COOKIE"],
-        value=access_token,
-        expires=settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"],
-        secure=settings.SIMPLE_JWT["AUTH_COOKIE_SECURE"],
-        httponly=settings.SIMPLE_JWT["AUTH_COOKIE_HTTP_ONLY"],
-        samesite=settings.SIMPLE_JWT["AUTH_COOKIE_SAMESITE"],
-        path=settings.SIMPLE_JWT["AUTH_COOKIE_PATH"],
-    )
-    response.set_cookie(
-        key=settings.SIMPLE_JWT["AUTH_COOKIE_REFRESH"],
-        value=refresh_token,
-        expires=settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"],
-        secure=settings.SIMPLE_JWT["AUTH_COOKIE_SECURE"],
-        httponly=settings.SIMPLE_JWT["AUTH_COOKIE_HTTP_ONLY"],
-        samesite=settings.SIMPLE_JWT["AUTH_COOKIE_SAMESITE"],
-        path=settings.SIMPLE_JWT["AUTH_COOKIE_PATH"],
-    )
-    return response
 
 
 class RegisterView(generics.CreateAPIView):

@@ -1,18 +1,14 @@
+import logging
 import stripe
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, get_object_or_404
+from django.urls import reverse
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from apps.billing.models import (
-    Plan,
-    PlanPrice,
-    Subscription,
-    Invoice,
-    SubscriptionStatus,
-)
+from apps.billing.models import Plan, PlanPrice, Subscription, Invoice
 from apps.billing.serializers import (
     PlanListSerializer,
     PlanWriteSerializer,
@@ -23,10 +19,13 @@ from apps.billing.serializers import (
     InvoiceSerializer,
 )
 from apps.billing.services.stripe_service import StripeService
+from apps.billing.services.subscription_service import SubscriptionService
 from apps.system_admin.permissions import IsSystemAdmin
 from core.permissions import IsBusinessAdmin
 from drf_yasg.utils import swagger_auto_schema
 from apps.billing import schemas
+
+logger = logging.getLogger(__name__)
 
 
 class PlanListView(generics.ListAPIView):
@@ -120,66 +119,19 @@ class SubscribeView(APIView):
         plan_price = PlanPrice.objects.select_related("plan").get(
             id=serializer.validated_data["plan_price_id"]
         )
-        business = request.user.business
-
-        # Check existing active subscription for this business
-        existing_active = (
-            Subscription.objects.filter(
-                business=business, status=SubscriptionStatus.ACTIVE
-            )
-            .select_related("plan_price__plan")
-            .first()
-        )
-
-        if existing_active:
-            if existing_active.plan_price_id == plan_price.id:
-                # Same plan: already active, will auto-renew — block duplicate
-                return Response(
-                    {
-                        "detail": "Already subscribed to this plan. Your subscription will auto-renew.",
-                        "plan_end_date": existing_active.current_period_end,
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            else:
-                # Different plan: cancel current subscription on Stripe first
-                try:
-                    if existing_active.stripe_subscription_id:
-                        StripeService.cancel_subscription(
-                            existing_active.stripe_subscription_id
-                        )
-                    existing_active.cancel(reason=f"Switched to {plan_price.plan.name}")
-                except stripe.error.StripeError as e:
-                    return Response(
-                        {"detail": f"Could not cancel current plan: {str(e)}"},
-                        status=status.HTTP_502_BAD_GATEWAY,
-                    )
-
-        # Build success URL pointing to our Django view
-        from django.urls import reverse
-
         base_url = request.build_absolute_uri("/")[:-1]
-        success_url = (
-            base_url
-            + reverse("billing-payment-success")
-            + "?session_id={CHECKOUT_SESSION_ID}"
-        )
+        success_url = base_url + reverse("billing-payment-success") + "?session_id={CHECKOUT_SESSION_ID}"
         cancel_url = serializer.validated_data["cancel_url"]
 
-        try:
-            session = StripeService.create_checkout_session(
-                business, plan_price, success_url, cancel_url
-            )
-        except stripe.error.StripeError as e:
-            return Response(
-                {"detail": f"Stripe error: {str(e)}"},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        return Response(
-            {"checkout_url": session.url, "session_id": session.id},
-            status=status.HTTP_200_OK,
+        result = SubscriptionService.create_checkout(
+            request.user.business, plan_price, success_url, cancel_url
         )
+
+        if "error" in result:
+            http_status = status.HTTP_502_BAD_GATEWAY if result["error"] == "stripe_error" else status.HTTP_400_BAD_REQUEST
+            return Response({"detail": result["detail"], **{k: v for k, v in result.items() if k not in ("error", "detail")}}, status=http_status)
+
+        return Response(result, status=status.HTTP_200_OK)
 
 
 # ─── Success & Invoice Views (HTML) ───────────────────────────────────────────
@@ -196,60 +148,7 @@ class PaymentSuccessView(APIView):
     @swagger_auto_schema(**schemas.payment_success_schema)
     def get(self, request):
         session_id = request.GET.get("session_id")
-        invoice_obj = None
-        stripe_invoice_url = None
-
-        if session_id and session_id.startswith("cs_"):
-            try:
-                # Fetch the Stripe session to get subscription + invoice IDs
-                session = stripe.checkout.Session.retrieve(
-                    session_id, expand=["subscription", "invoice"]
-                )
-
-                _get = StripeService._stripe_get
-
-                # Ensure subscription exists locally
-                stripe_sub = _get(session, "subscription")
-                if stripe_sub:
-                    if isinstance(stripe_sub, str):
-                        stripe_sub = stripe.Subscription.retrieve(stripe_sub)
-                    StripeService.handle_subscription_created_or_updated(stripe_sub)
-
-                # Ensure invoice exists locally
-                stripe_invoice = _get(session, "invoice")
-                if stripe_invoice:
-                    if isinstance(stripe_invoice, str):
-                        stripe_invoice = stripe.Invoice.retrieve(stripe_invoice)
-                    StripeService.handle_invoice_paid(stripe_invoice)
-
-                    # Look up the local invoice by stripe_invoice_id
-                    invoice_obj = Invoice.objects.filter(
-                        stripe_invoice_id=_get(stripe_invoice, "id")
-                    ).first()
-
-                    # Fallback: if still not local, link to hosted invoice URL
-                    if not invoice_obj:
-                        stripe_invoice_url = _get(stripe_invoice, "hosted_invoice_url")
-
-                # If no invoice in session yet (subscription-only checkout), try by business
-                if (
-                    not invoice_obj
-                    and request.user.is_authenticated
-                    and hasattr(request.user, "business")
-                ):
-                    invoice_obj = (
-                        Invoice.objects.filter(business=request.user.business)
-                        .order_by("-created_at")
-                        .first()
-                    )
-
-            except Exception as e:
-                import logging
-
-                logging.getLogger(__name__).error(
-                    f"PaymentSuccessView error: {e}", exc_info=True
-                )
-
+        invoice_obj, stripe_invoice_url = SubscriptionService.resolve_payment_success(session_id, request.user)
         return render(
             request,
             "billing/success.html",
@@ -310,57 +209,20 @@ class SwitchPlanView(APIView):
         new_plan_price = PlanPrice.objects.select_related("plan").get(
             id=serializer.validated_data["plan_price_id"]
         )
-        business = request.user.business
 
-        # Get active subscription
-        sub = (
-            Subscription.objects.filter(
-                business=business, status=SubscriptionStatus.ACTIVE
-            )
-            .select_related("plan_price__plan")
-            .first()
+        result = SubscriptionService.switch_plan(request.user.business, new_plan_price)
+
+        if "error" in result:
+            http_status = status.HTTP_502_BAD_GATEWAY if result["error"] == "stripe_error" else status.HTTP_400_BAD_REQUEST
+            return Response({"detail": result["detail"]}, status=http_status)
+
+        return Response(
+            {
+                "detail": "Plan switched successfully. Changes will be reflected in your next invoice.",
+                "subscription": SubscriptionSerializer(result["subscription"]).data,
+            },
+            status=status.HTTP_200_OK,
         )
-
-        if not sub:
-            return Response(
-                {"detail": "No active subscription to switch from."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not sub.stripe_subscription_id:
-            return Response(
-                {"detail": "Subscription not linked to Stripe."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Same plan? Don't allow
-        if sub.plan_price_id == new_plan_price.id:
-            return Response(
-                {"detail": "Already on this plan."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            # Call Stripe to switch with proration
-            StripeService.switch_subscription_plan(
-                sub.stripe_subscription_id, new_plan_price.stripe_price_id
-            )
-            # Update local subscription
-            sub.plan_price = new_plan_price
-            sub.save(update_fields=["plan_price", "updated_at"])
-
-            return Response(
-                {
-                    "detail": "Plan switched successfully. Changes will be reflected in your next invoice.",
-                    "subscription": SubscriptionSerializer(sub).data,
-                },
-                status=status.HTTP_200_OK,
-            )
-        except stripe.error.StripeError as e:
-            return Response(
-                {"detail": f"Stripe error: {str(e)}"},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
 
 
 class MySubscriptionView(generics.RetrieveAPIView):
@@ -404,40 +266,15 @@ class CancelSubscriptionView(APIView):
         serializer = CancelSubscriptionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        sub = (
-            Subscription.objects.filter(
-                business=request.user.business, status=SubscriptionStatus.ACTIVE
-            )
-            .only(
-                "id",
-                "stripe_subscription_id",
-                "status",
-                "cancelled_at",
-                "cancel_reason",
-                "updated_at",
-            )
-            .first()
+        result = SubscriptionService.cancel(
+            request.user.business, reason=serializer.validated_data.get("reason", "")
         )
-        if not sub:
-            return Response(
-                {"detail": "No active subscription to cancel."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
-        try:
-            if sub.stripe_subscription_id:
-                StripeService.cancel_subscription(sub.stripe_subscription_id)
-        except stripe.error.StripeError as e:
-            return Response(
-                {"detail": f"Stripe error: {str(e)}"},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+        if "error" in result:
+            http_status = status.HTTP_502_BAD_GATEWAY if result["error"] == "stripe_error" else status.HTTP_400_BAD_REQUEST
+            return Response({"detail": result["detail"]}, status=http_status)
 
-        sub.cancel(reason=serializer.validated_data.get("reason", ""))
-        return Response(
-            {"detail": "Subscription cancelled successfully."},
-            status=status.HTTP_200_OK,
-        )
+        return Response({"detail": "Subscription cancelled successfully."}, status=status.HTTP_200_OK)
 
 
 class MyInvoiceListView(generics.ListAPIView):
@@ -485,31 +322,28 @@ class StripeWebhookView(APIView):
         event_type = event["type"]
         data_obj = event["data"]["object"]
 
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.info(f"Received Stripe Webhook: {event_type}")
+        logger.info("Received Stripe Webhook: %s", event_type)
 
         obj_id = data_obj["id"]
 
         if event_type == "customer.subscription.created":
             StripeService.handle_subscription_created_or_updated(data_obj)
-            logger.info(f"Subscription Created: {obj_id}")
+            logger.info("Subscription Created: %s", obj_id)
 
         elif event_type == "customer.subscription.updated":
             StripeService.handle_subscription_created_or_updated(data_obj)
-            logger.info(f"Subscription Updated: {obj_id}")
+            logger.info("Subscription Updated: %s", obj_id)
 
         elif event_type == "customer.subscription.deleted":
             StripeService.handle_subscription_deleted(data_obj)
-            logger.info(f"Subscription Deleted: {obj_id}")
+            logger.info("Subscription Deleted: %s", obj_id)
 
         elif event_type == "invoice.paid":
             StripeService.handle_invoice_paid(data_obj)
-            logger.info(f"Invoice Paid: {obj_id}")
+            logger.info("Invoice Paid: %s", obj_id)
 
         elif event_type == "invoice.payment_failed":
             StripeService.handle_invoice_payment_failed(data_obj)
-            logger.info(f"Invoice Payment Failed: {obj_id}")
+            logger.info("Invoice Payment Failed: %s", obj_id)
 
         return Response({"status": "ok"}, status=status.HTTP_200_OK)

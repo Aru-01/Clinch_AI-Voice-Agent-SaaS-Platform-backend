@@ -22,15 +22,15 @@ class JWTCookieMiddleware(MiddlewareMixin):
                 pass
 
     def process_response(self, request, response):
-        # If we generated a new access token in process_request, set it in the response cookie
         if hasattr(request, '_new_access_token'):
+            jwt = settings.SIMPLE_JWT
             response.set_cookie(
-                key=settings.SIMPLE_JWT['AUTH_COOKIE'],
+                key=jwt['AUTH_COOKIE'],
                 value=request._new_access_token,
-                expires=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'],
-                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
-                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-                path=settings.SIMPLE_JWT['AUTH_COOKIE_PATH'],
+                max_age=int(jwt['ACCESS_TOKEN_LIFETIME'].total_seconds()),
+                secure=jwt['AUTH_COOKIE_SECURE'],
+                httponly=jwt['AUTH_COOKIE_HTTP_ONLY'],
+                samesite=jwt['AUTH_COOKIE_SAMESITE'],
+                path=jwt['AUTH_COOKIE_PATH'],
             )
         return response

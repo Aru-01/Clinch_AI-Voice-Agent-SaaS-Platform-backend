@@ -1,7 +1,6 @@
 import uuid
 import json
 from django.http import HttpResponse
-from django.utils import timezone
 from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -11,7 +10,8 @@ from drf_yasg.utils import swagger_auto_schema
 from core.permissions import IsBusinessAdmin, HasActiveSubscription
 from apps.crm_integration.services import get_oauth_service
 from apps.crm_integration.services.webhook_handlers import dispatch, parse_salesforce_soap
-from apps.crm_integration.models import CRMConnection, CRMWebhookLog, SyncedLead, CRMSyncState
+from apps.crm_integration.services.connection_service import process_oauth_callback
+from apps.crm_integration.models import CRMConnection, CRMWebhookLog, SyncedLead
 from apps.crm_integration.serializers import CRMConnectionSerializer, SyncedLeadSerializer
 from apps.crm_integration import schemas
 from core.pagination import DynamicPageNumberPagination
@@ -73,62 +73,20 @@ class CRMOAuthCallbackView(APIView):
             return Response({"success": False, "error": "Missing code or state"}, status=400)
 
         stored_state = request.session.get(f"oauth_state_{crm_type}")
-        if not stored_state or stored_state != state:
-            return Response({"success": False, "error": "Invalid state"}, status=400)
 
         try:
-            code_verifier = request.session.get(f"pkce_verifier_{crm_type}")
-            service = get_oauth_service(crm_type)
-            token_result = service.exchange_code_for_token(code, code_verifier=code_verifier)
+            def build_webhook_url(ct):
+                return f"{request.build_absolute_uri('/api/crm/webhook/')}{ct}/"
 
-            if not token_result.get("success"):
-                return Response({"success": False, "error": token_result.get("error")}, status=400)
-
-            business = request.user.business
-            if not business:
-                return Response({"success": False, "error": "User not associated with a business"}, status=400)
-
-            expires_at = None
-            if token_result.get("expires_in"):
-                expires_at = timezone.now() + timezone.timedelta(seconds=token_result["expires_in"])
-
-            crm_connection, created = CRMConnection.objects.update_or_create(
-                user=request.user,
-                crm_type=crm_type,
-                defaults={
-                    "business": business,
-                    "access_token": token_result.get("access_token"),
-                    "refresh_token": token_result.get("refresh_token"),
-                    "access_token_expires_at": expires_at,
-                    "is_active": True,
-                    "raw_config": {
-                        "instance_url": token_result.get("instance_url"),
-                        "api_domain": token_result.get("api_domain"),
-                    },
-                },
+            result, err, http_status = process_oauth_callback(
+                crm_type, code, state, stored_state, request.user, build_webhook_url
             )
-            if created:
-                CRMSyncState.objects.create(crm_connection=crm_connection)
-
-            webhook_url = f"{request.build_absolute_uri('/api/crm/webhook/')}{crm_type}/"
-            webhook_result = get_oauth_service(crm_type, crm_connection).configure_webhook(webhook_url)
-            if webhook_result.get("success"):
-                crm_connection.webhook_url = webhook_url
-                crm_connection.webhook_secret = webhook_result.get("webhook_secret")
-                crm_connection.webhook_id = webhook_result.get("webhook_id")
-                crm_connection.save()
+            if err:
+                return Response({"success": False, "error": err}, status=http_status)
 
             request.session.pop(f"oauth_state_{crm_type}", None)
             request.session.pop(f"pkce_verifier_{crm_type}", None)
-
-            sync_result = get_oauth_service(crm_type, crm_connection).sync_leads_to_db()
-
-            return Response({
-                "success": True,
-                "message": f"{crm_type} connected successfully",
-                "connection_id": str(crm_connection.id),
-                "initial_sync": sync_result,
-            })
+            return Response(result)
         except NotImplementedError as e:
             return Response({"success": False, "error": str(e)}, status=501)
         except Exception as e:

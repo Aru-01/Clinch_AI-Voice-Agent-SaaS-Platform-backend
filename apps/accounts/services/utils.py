@@ -1,13 +1,41 @@
 import random
 import string
 import os
+import logging
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
 from django.utils import timezone
 from email.mime.image import MIMEImage
+from rest_framework_simplejwt.tokens import RefreshToken
 from ..models import OTPCode
+
+logger = logging.getLogger(__name__)
+
+
+def set_auth_cookies(response, user):
+    refresh = RefreshToken.for_user(user)
+    jwt = settings.SIMPLE_JWT
+    response.set_cookie(
+        key=jwt["AUTH_COOKIE"],
+        value=str(refresh.access_token),
+        max_age=int(jwt["ACCESS_TOKEN_LIFETIME"].total_seconds()),
+        secure=jwt["AUTH_COOKIE_SECURE"],
+        httponly=jwt["AUTH_COOKIE_HTTP_ONLY"],
+        samesite=jwt["AUTH_COOKIE_SAMESITE"],
+        path=jwt["AUTH_COOKIE_PATH"],
+    )
+    response.set_cookie(
+        key=jwt["AUTH_COOKIE_REFRESH"],
+        value=str(refresh),
+        max_age=int(jwt["REFRESH_TOKEN_LIFETIME"].total_seconds()),
+        secure=jwt["AUTH_COOKIE_SECURE"],
+        httponly=jwt["AUTH_COOKIE_HTTP_ONLY"],
+        samesite=jwt["AUTH_COOKIE_SAMESITE"],
+        path=jwt["AUTH_COOKIE_PATH"],
+    )
+    return response
 
 
 def generate_otp(user, otp_type):
@@ -83,6 +111,5 @@ def send_otp_email(user, code, otp_type):
         msg.send()
         return True
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).error("Error sending email: %s", e)
+        logger.error("Error sending email: %s", e)
         return False
