@@ -3,7 +3,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, get_object_or_404
 from rest_framework import generics, status
-from rest_framework.permissions import AllowAny, BasePermission
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from apps.billing.models import (
@@ -24,25 +24,9 @@ from apps.billing.serializers import (
 )
 from apps.billing.services.stripe_service import StripeService
 from apps.system_admin.permissions import IsSystemAdmin
+from core.permissions import IsBusinessAdmin
 from drf_yasg.utils import swagger_auto_schema
 from apps.billing import schemas
-
-
-class IsBusinessAdmin(BasePermission):
-    """Only authenticated users that belong to a business."""
-
-    message = "Business admin access required."
-
-    def has_permission(self, request, view):
-        if not (
-            request.user and request.user.is_authenticated and request.user.is_verified
-        ):
-            return False
-        if not hasattr(request.user, "_is_business_admin"):
-            request.user._is_business_admin = request.user.user_roles.filter(
-                role__name="business_admin"
-            ).exists()
-        return request.user._is_business_admin
 
 
 class PlanListView(generics.ListAPIView):

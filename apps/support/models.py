@@ -29,11 +29,15 @@ class SupportTicket(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.ticket_number:
-            last_ticket = SupportTicket.objects.order_by("ticket_number").last()
-            if last_ticket and last_ticket.ticket_number:
-                self.ticket_number = last_ticket.ticket_number + 1
-            else:
-                self.ticket_number = 1
+            from django.db import transaction
+            with transaction.atomic():
+                last = (
+                    SupportTicket.objects.select_for_update()
+                    .order_by("ticket_number")
+                    .values_list("ticket_number", flat=True)
+                    .last()
+                )
+                self.ticket_number = (last or 0) + 1
         super().save(*args, **kwargs)
 
     class Meta:

@@ -83,5 +83,6 @@ def send_otp_email(user, code, otp_type):
         msg.send()
         return True
     except Exception as e:
-        print(f"Error sending email: {e}")
+        import logging
+        logging.getLogger(__name__).error("Error sending email: %s", e)
         return False

@@ -21,7 +21,15 @@ class BusinessSupportTicketListSerializer(serializers.ModelSerializer):
             "notes",
             "created_at",
         ]
-        read_only_fields = fields
+        read_only_fields = [
+            "id",
+            "ticket_number",
+            "subject",
+            "message",
+            "status",
+            "notes",
+            "created_at",
+        ]
 
 
 class SupportTicketListSerializer(serializers.ModelSerializer):
@@ -43,7 +51,19 @@ class SupportTicketListSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = fields
+        read_only_fields = [
+            "id",
+            "ticket_number",
+            "business",
+            "business_name",
+            "creator",
+            "subject",
+            "message",
+            "status",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class SupportTicketSerializer(serializers.ModelSerializer):

@@ -1,8 +1,11 @@
+import logging
 import requests
 from datetime import timedelta
 from urllib.parse import urlencode
 from decouple import config
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 from .base import BaseOAuthService
 
 
@@ -44,7 +47,7 @@ class PipedriveService(BaseOAuthService):
         })
         if resp.status_code == 200:
             d = resp.json()
-            print(f"[Pipedrive] token: api_domain={d.get('api_domain')} | scope={d.get('scope')}")
+            logger.info("[Pipedrive] token: api_domain=%s | scope=%s", d.get('api_domain'), d.get('scope'))
             return {
                 "success": True,
                 "access_token": d.get("access_token"),
@@ -116,7 +119,7 @@ class PipedriveService(BaseOAuthService):
             headers={"Authorization": f"Bearer {self.access_token}"},
         )
         url = f"{self.api_base}/persons/{person_id}"
-        print(f"[Pipedrive] GET {url} → {resp.status_code} | {resp.text[:200]}")
+        logger.debug("[Pipedrive] GET %s → %s", url, resp.status_code)
         if resp.status_code == 200:
             return resp.json().get("data") or {}
         if resp.status_code == 403:

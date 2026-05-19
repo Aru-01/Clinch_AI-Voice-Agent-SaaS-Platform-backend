@@ -238,7 +238,9 @@ class CRMWebhookView(APIView):
             else:
                 data = request.data if hasattr(request, "data") else json.loads(body)
 
-            print(f"\n{'='*60}\n[WEBHOOK] CRM: {crm_type}\n[WEBHOOK] DATA: {data}\n{'='*60}\n")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info("[WEBHOOK] CRM: %s | DATA: %s", crm_type, data)
 
             CRMWebhookLog.objects.create(
                 crm_connection=conn,

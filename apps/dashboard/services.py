@@ -208,7 +208,7 @@ def get_call_logs_graph(business=None):
 
 def get_recent_calls(business=None, limit=6):
     """Get recent call logs"""
-    qs = CallLog.objects.all()
+    qs = CallLog.objects.select_related("business").order_by("-call_date_time")
     if business:
         qs = qs.filter(business=business)
 
@@ -229,7 +229,7 @@ def get_recent_calls(business=None, limit=6):
 
 def get_recent_notifications(user=None, limit=6):
     """Get recent notifications"""
-    qs = Notification.objects.all()
+    qs = Notification.objects.order_by("-created_at")
     if user:
         qs = qs.filter(recipient=user)
 
