@@ -2,7 +2,6 @@ import os
 from rest_framework import serializers
 from core.encryption import mask_value
 from apps.configuration.models import (
-    APIConfig,
     TwilioConfig,
     VoiceConfig,
     KnowledgeFile,
@@ -27,43 +26,6 @@ class MaskedReadMixin:
             if raw:
                 data[field] = mask_value(raw)
         return data
-
-
-class APIConfigSerializer(MaskedReadMixin, serializers.ModelSerializer):
-    masked_fields = ["openai_key", "deepgram_key"]
-    openai_key = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True
-    )
-    deepgram_key = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True
-    )
-
-    class Meta:
-        model = APIConfig
-        fields = [
-            "id",
-            "business",
-            "openai_key",
-            "deepgram_key",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["id", "business", "created_at", "updated_at"]
-
-    def update(self, instance, validated_data):
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
-
-    def create(self, validated_data):
-        business_id = validated_data.pop("business_id", None)
-        instance = APIConfig(business_id=business_id)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
-
 
 
 class TwilioConfigSerializer(MaskedReadMixin, serializers.ModelSerializer):

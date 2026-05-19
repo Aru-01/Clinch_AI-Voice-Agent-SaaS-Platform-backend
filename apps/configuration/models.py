@@ -5,46 +5,7 @@ from apps.accounts.models import Business
 from core.encryption import encrypt_value, decrypt_value
 
 
-# ---------------------------------------------------------------------------
-# APIConfig
-# ---------------------------------------------------------------------------
-
-
-class APIConfig(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    business = models.OneToOneField(
-        Business, on_delete=models.CASCADE, related_name="api_config"
-    )
-
-    _openai_key = models.TextField(db_column="openai_key", blank=True, null=True)
-    _deepgram_key = models.TextField(db_column="deepgram_key", blank=True, null=True)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    @property
-    def openai_key(self):
-        return decrypt_value(self._openai_key) if self._openai_key else None
-
-    @openai_key.setter
-    def openai_key(self, value):
-        self._openai_key = encrypt_value(value) if value else None
-
-    @property
-    def deepgram_key(self):
-        return decrypt_value(self._deepgram_key) if self._deepgram_key else None
-
-    @deepgram_key.setter
-    def deepgram_key(self, value):
-        self._deepgram_key = encrypt_value(value) if value else None
-
-    class Meta:
-        verbose_name = "API Config"
-        verbose_name_plural = "API Configs"
-
-    def __str__(self):
-        return f"APIConfig – {self.business.name}"
-
+# APIConfig has been removed - use service-level configuration instead
 
 
 class TwilioConfig(models.Model):

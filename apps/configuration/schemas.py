@@ -9,54 +9,7 @@ _masked_key   = openapi.Schema(type=openapi.TYPE_STRING, description="Masked API
 _ts           = openapi.Schema(type=openapi.TYPE_STRING, format="date-time")
 
 
-# ─────────────────────────────────────────────────────────────────────────
-# APIConfig
-# ─────────────────────────────────────────────────────────────────────────
-
-_api_config_response = openapi.Schema(
-    type=openapi.TYPE_OBJECT,
-    properties={
-        "id":           _config_id,
-        "business":     _business_id,
-        "openai_key":   _masked_key,
-        "deepgram_key": _masked_key,
-        "created_at":   _ts,
-        "updated_at":   _ts,
-    },
-)
-
-_api_config_body = openapi.Schema(
-    type=openapi.TYPE_OBJECT,
-    properties={
-        "openai_key":   openapi.Schema(type=openapi.TYPE_STRING, description="Full OpenAI key"),
-        "deepgram_key": openapi.Schema(type=openapi.TYPE_STRING, description="Full Deepgram key"),
-    },
-)
-
-api_config_get_schema = dict(
-    operation_summary="Get API Config",
-    operation_description="Retrieve business API keys (masked for display).",
-    tags=["Configuration – API Keys"],
-    responses={200: _api_config_response, 404: "Not configured yet"},
-)
-
-api_config_create_schema = dict(
-    operation_summary="Create API Config",
-    operation_description="Add OpenAI and Deepgram keys for the business. Keys are encrypted at rest.",
-    tags=["Configuration – API Keys"],
-    request_body=_api_config_body,
-    responses={201: _api_config_response, 400: "Validation error"},
-)
-
-api_config_update_schema = dict(
-    operation_summary="Update API Config",
-    operation_description="Patch one or both API keys. Omitted keys remain unchanged.",
-    tags=["Configuration – API Keys"],
-    request_body=_api_config_body,
-    responses={200: _api_config_response},
-)
-
-
+# APIConfig has been removed
 
 # ─────────────────────────────────────────────────────────────────────────
 # TwilioConfig

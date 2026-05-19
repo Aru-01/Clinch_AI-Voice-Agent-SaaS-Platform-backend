@@ -1,7 +1,6 @@
 from django import forms
 from django.contrib import admin
 from apps.configuration.models import (
-    APIConfig,
     TwilioConfig,
     VoiceConfig,
     KnowledgeFile,
@@ -46,36 +45,6 @@ class MaskedAdminForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
-
-
-class APIConfigAdminForm(MaskedAdminForm):
-    class Meta:
-        model = APIConfig
-        fields = "__all__"
-        masked_fields = ["openai_key", "deepgram_key"]
-
-    openai_key = forms.CharField(
-        required=False, widget=forms.PasswordInput(render_value=False)
-    )
-    deepgram_key = forms.CharField(
-        required=False, widget=forms.PasswordInput(render_value=False)
-    )
-
-
-@admin.register(APIConfig)
-class APIConfigAdmin(admin.ModelAdmin):
-    form = APIConfigAdminForm
-    list_display = ["business", "created_at", "updated_at"]
-    readonly_fields = ["id", "business", "created_at", "updated_at"]
-    fields = [
-        "id",
-        "business",
-        "openai_key",
-        "deepgram_key",
-        "created_at",
-        "updated_at",
-    ]
-
 
 
 class TwilioConfigAdminForm(MaskedAdminForm):

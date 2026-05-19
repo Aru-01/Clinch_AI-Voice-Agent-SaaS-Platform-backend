@@ -1,6 +1,5 @@
 from django.urls import path
 from apps.configuration.views import (
-    APIConfigView,
     TwilioConfigView,
     VoiceConfigView,
     KnowledgeFileListCreateView,
@@ -8,9 +7,6 @@ from apps.configuration.views import (
 )
 
 urlpatterns = [
-    # API Config (OpenAI / Deepgram keys)
-    path("api-config/", APIConfigView.as_view(), name="api-config"),
-
     # Twilio Config
     path("twilio-config/", TwilioConfigView.as_view(), name="twilio-config"),
 
