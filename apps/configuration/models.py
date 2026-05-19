@@ -46,62 +46,6 @@ class APIConfig(models.Model):
         return f"APIConfig – {self.business.name}"
 
 
-class CRMConfig(models.Model):
-    class Provider(models.TextChoices):
-        GOHIGHLEVEL = "gohighlevel", "GoHighLevel"
-        HUBSPOT = "hubspot", "HubSpot"
-        ZOHO = "zoho", "Zoho"
-        SALESFORCE = "salesforce", "Salesforce"
-        OTHER = "other", "Other"
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    business = models.OneToOneField(
-        Business, on_delete=models.CASCADE, related_name="crm_config"
-    )
-    provider = models.CharField(
-        max_length=50, choices=Provider.choices, default=Provider.GOHIGHLEVEL
-    )
-
-    _token = models.TextField(db_column="token", blank=True, null=True)
-    _location_id = models.TextField(db_column="location_id", blank=True, null=True)
-    _webhook_secret = models.TextField(
-        db_column="webhook_secret", blank=True, null=True
-    )
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    @property
-    def token(self):
-        return decrypt_value(self._token) if self._token else None
-
-    @token.setter
-    def token(self, value):
-        self._token = encrypt_value(value) if value else None
-
-    @property
-    def location_id(self):
-        return decrypt_value(self._location_id) if self._location_id else None
-
-    @location_id.setter
-    def location_id(self, value):
-        self._location_id = encrypt_value(value) if value else None
-
-    @property
-    def webhook_secret(self):
-        return decrypt_value(self._webhook_secret) if self._webhook_secret else None
-
-    @webhook_secret.setter
-    def webhook_secret(self, value):
-        self._webhook_secret = encrypt_value(value) if value else None
-
-    class Meta:
-        verbose_name = "CRM Config"
-        verbose_name_plural = "CRM Configs"
-
-    def __str__(self):
-        return f"CRMConfig({self.provider}) – {self.business.name}"
-
 
 class TwilioConfig(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

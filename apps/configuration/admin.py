@@ -2,7 +2,6 @@ from django import forms
 from django.contrib import admin
 from apps.configuration.models import (
     APIConfig,
-    CRMConfig,
     TwilioConfig,
     VoiceConfig,
     KnowledgeFile,
@@ -77,40 +76,6 @@ class APIConfigAdmin(admin.ModelAdmin):
         "updated_at",
     ]
 
-
-class CRMConfigAdminForm(MaskedAdminForm):
-    class Meta:
-        model = CRMConfig
-        fields = "__all__"
-        masked_fields = ["token", "location_id", "webhook_secret"]
-
-    token = forms.CharField(
-        required=False, widget=forms.PasswordInput(render_value=False)
-    )
-    location_id = forms.CharField(
-        required=False, widget=forms.PasswordInput(render_value=False)
-    )
-    webhook_secret = forms.CharField(
-        required=False, widget=forms.PasswordInput(render_value=False)
-    )
-
-
-@admin.register(CRMConfig)
-class CRMConfigAdmin(admin.ModelAdmin):
-    form = CRMConfigAdminForm
-    list_display = ["business", "provider", "created_at", "updated_at"]
-    readonly_fields = ["id", "business", "created_at", "updated_at"]
-    fields = [
-        "id",
-        "business",
-        "provider",
-        "token",
-        "location_id",
-        "webhook_secret",
-        "created_at",
-        "updated_at",
-    ]
-    list_filter = ["provider"]
 
 
 class TwilioConfigAdminForm(MaskedAdminForm):

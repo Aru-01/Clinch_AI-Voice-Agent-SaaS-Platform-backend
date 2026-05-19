@@ -7,14 +7,12 @@ from drf_yasg.utils import swagger_auto_schema
 from core.permissions import IsBusinessAdmin
 from apps.configuration.models import (
     APIConfig,
-    CRMConfig,
     TwilioConfig,
     VoiceConfig,
     KnowledgeFile,
 )
 from apps.configuration.serializers import (
     APIConfigSerializer,
-    CRMConfigSerializer,
     TwilioConfigSerializer,
     VoiceConfigSerializer,
     KnowledgeFileSerializer,
@@ -102,21 +100,6 @@ class APIConfigView(SingletonConfigView):
         return super().patch(request)
 
 
-class CRMConfigView(SingletonConfigView):
-    serializer_class = CRMConfigSerializer
-    model_class = CRMConfig
-
-    @swagger_auto_schema(**schemas.crm_config_get_schema)
-    def get(self, request):
-        return super().get(request)
-
-    @swagger_auto_schema(**schemas.crm_config_create_schema)
-    def post(self, request):
-        return super().post(request)
-
-    @swagger_auto_schema(**schemas.crm_config_update_schema)
-    def patch(self, request):
-        return super().patch(request)
 
 
 class TwilioConfigView(SingletonConfigView):

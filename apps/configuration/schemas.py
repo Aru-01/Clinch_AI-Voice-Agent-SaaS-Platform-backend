@@ -57,57 +57,6 @@ api_config_update_schema = dict(
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────
-# CRMConfig
-# ─────────────────────────────────────────────────────────────────────────
-
-_crm_config_response = openapi.Schema(
-    type=openapi.TYPE_OBJECT,
-    properties={
-        "id":             _config_id,
-        "business":       _business_id,
-        "provider":       openapi.Schema(type=openapi.TYPE_STRING, enum=["gohighlevel","hubspot","zoho","salesforce","other"]),
-        "token":          _masked_key,
-        "location_id":    _masked_key,
-        "webhook_secret": _masked_key,
-        "created_at":     _ts,
-        "updated_at":     _ts,
-    },
-)
-
-_crm_config_body = openapi.Schema(
-    type=openapi.TYPE_OBJECT,
-    properties={
-        "provider":       openapi.Schema(type=openapi.TYPE_STRING),
-        "token":          openapi.Schema(type=openapi.TYPE_STRING),
-        "location_id":    openapi.Schema(type=openapi.TYPE_STRING),
-        "webhook_secret": openapi.Schema(type=openapi.TYPE_STRING),
-    },
-)
-
-crm_config_get_schema = dict(
-    operation_summary="Get CRM Config",
-    operation_description="Retrieve CRM integration credentials (masked).",
-    tags=["Configuration – CRM"],
-    responses={200: _crm_config_response, 404: "Not configured yet"},
-)
-
-crm_config_create_schema = dict(
-    operation_summary="Create CRM Config",
-    operation_description="Store CRM credentials. Sensitive fields are encrypted at rest.",
-    tags=["Configuration – CRM"],
-    request_body=_crm_config_body,
-    responses={201: _crm_config_response},
-)
-
-crm_config_update_schema = dict(
-    operation_summary="Update CRM Config",
-    operation_description="Patch CRM credentials.",
-    tags=["Configuration – CRM"],
-    request_body=_crm_config_body,
-    responses={200: _crm_config_response},
-)
-
 
 # ─────────────────────────────────────────────────────────────────────────
 # TwilioConfig

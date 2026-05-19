@@ -3,7 +3,6 @@ from rest_framework import serializers
 from core.encryption import mask_value
 from apps.configuration.models import (
     APIConfig,
-    CRMConfig,
     TwilioConfig,
     VoiceConfig,
     KnowledgeFile,
@@ -65,45 +64,6 @@ class APIConfigSerializer(MaskedReadMixin, serializers.ModelSerializer):
         instance.save()
         return instance
 
-
-class CRMConfigSerializer(MaskedReadMixin, serializers.ModelSerializer):
-    masked_fields = ["token", "location_id", "webhook_secret"]
-
-    token = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    location_id = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True
-    )
-    webhook_secret = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True
-    )
-
-    class Meta:
-        model = CRMConfig
-        fields = [
-            "id",
-            "business",
-            "provider",
-            "token",
-            "location_id",
-            "webhook_secret",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["id", "business", "created_at", "updated_at"]
-
-    def update(self, instance, validated_data):
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
-
-    def create(self, validated_data):
-        business_id = validated_data.pop("business_id", None)
-        instance = CRMConfig(business_id=business_id)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
 
 
 class TwilioConfigSerializer(MaskedReadMixin, serializers.ModelSerializer):
