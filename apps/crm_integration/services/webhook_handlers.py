@@ -7,11 +7,34 @@ def _build_name(first, last):
 
 
 def upsert_lead(conn, crm_id, **fields):
-    SyncedLead.objects.update_or_create(
+    _, created = SyncedLead.objects.update_or_create(
         crm_connection=conn,
         crm_lead_id=str(crm_id),
         defaults={"business": conn.business, **fields},
     )
+    if created:
+        _notify_new_lead(conn, fields)
+
+
+def _notify_new_lead(conn, lead_data):
+    try:
+        from apps.notifications.models import Notification
+        from apps.notifications.services import notify_business_admins
+        name = lead_data.get("name") or "Unknown"
+        notify_business_admins(
+            business=conn.business,
+            notification_type=Notification.NotificationType.NEW_LEAD,
+            title="New Lead",
+            message=f"New lead '{name}' synced from {conn.get_crm_type_display()}.",
+            data={
+                "crm_type": conn.crm_type,
+                "name": name,
+                "email": lead_data.get("email"),
+                "phone": lead_data.get("phone"),
+            },
+        )
+    except Exception:
+        pass
 
 
 def parse_salesforce_soap(body: str) -> dict:

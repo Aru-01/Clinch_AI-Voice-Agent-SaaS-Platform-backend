@@ -36,7 +36,30 @@ class BaseOAuthService:
             crm_lead_id=str(crm_lead_id),
             defaults={**defaults, "business": self.crm_connection.business},
         )
+        if created:
+            self._notify_new_lead(defaults)
         return created
+
+    def _notify_new_lead(self, lead_data):
+        try:
+            from apps.notifications.models import Notification
+            from apps.notifications.services import notify_business_admins
+            name = lead_data.get("name") or "Unknown"
+            crm_name = self.crm_connection.get_crm_type_display()
+            notify_business_admins(
+                business=self.crm_connection.business,
+                notification_type=Notification.NotificationType.NEW_LEAD,
+                title="New Lead",
+                message=f"New lead '{name}' synced from {crm_name}.",
+                data={
+                    "crm_type": self.crm_connection.crm_type,
+                    "name": name,
+                    "email": lead_data.get("email"),
+                    "phone": lead_data.get("phone"),
+                },
+            )
+        except Exception:
+            pass
 
     def _finish_sync(self, saved, updated):
         from apps.crm_integration.models import SyncedLead
