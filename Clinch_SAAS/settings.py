@@ -53,6 +53,7 @@ CUSTOM_APPS = [
     "apps.call_logs",
     "apps.bookings",
     "apps.notifications",
+    "apps.dashboard",
 ]
 
 INSTALLED_APPS += CUSTOM_APPS
