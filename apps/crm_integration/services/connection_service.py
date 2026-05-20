@@ -6,7 +6,7 @@ from apps.crm_integration.services import get_oauth_service
 logger = logging.getLogger(__name__)
 
 
-def process_oauth_callback(crm_type, code, state, stored_state, request_user, build_webhook_url):
+def process_oauth_callback(crm_type, code, state, stored_state, request_user, build_webhook_url, code_verifier=None):
     """
     Handles the full OAuth callback flow: token exchange, connection upsert,
     webhook registration, and initial lead sync.
@@ -17,7 +17,7 @@ def process_oauth_callback(crm_type, code, state, stored_state, request_user, bu
         return None, "Invalid state", 400
 
     service = get_oauth_service(crm_type)
-    token_result = service.exchange_code_for_token(code)
+    token_result = service.exchange_code_for_token(code, code_verifier=code_verifier)
 
     if not token_result.get("success"):
         return None, token_result.get("error"), 400

@@ -78,8 +78,10 @@ class CRMOAuthCallbackView(APIView):
             def build_webhook_url(ct):
                 return f"{request.build_absolute_uri('/api/crm/webhook/')}{ct}/"
 
+            code_verifier = request.session.get(f"pkce_verifier_{crm_type}")
             result, err, http_status = process_oauth_callback(
-                crm_type, code, state, stored_state, request.user, build_webhook_url
+                crm_type, code, state, stored_state, request.user, build_webhook_url,
+                code_verifier=code_verifier,
             )
             if err:
                 return Response({"success": False, "error": err}, status=http_status)
